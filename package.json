@@ -1,0 +1,20 @@
+{
+  "name": "model-manager",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "mongodb": "^3.6.2",
+    "short-uuid": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.6"
+  }
+}
