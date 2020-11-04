@@ -13,7 +13,7 @@ import {
 import {Mutex} from './utils/mutex'
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from './types'
 import {AbstractEntity} from "./abstract-entity";
-import {makeEntity, SemanticPackage} from "./model-manager";
+import { SemanticPackage} from "./model-manager";
 import {generate} from 'short-uuid'
 import {storageEventEmitter} from "./utils/storage-event-emitter";
 import {LoggedException} from "./utils/logged-exception";
@@ -187,7 +187,7 @@ export class Collection {
             return null
         if (!this.clazz)
             return record
-        return <T>makeEntity(this.clazz, record._id, record)
+        return <T>this.sp.makeEntity(this.clazz, record._id, record)
     }
 
     async find(query, options: IFindOptions = {}): Promise<Cursor> {
