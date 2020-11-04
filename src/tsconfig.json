@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ESNext",
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "lib": [
+      "jasmine-ts"
+    ]
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}

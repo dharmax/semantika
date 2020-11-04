@@ -26,8 +26,9 @@ export type FilterFunction = (items: any[]) => Promise<any[]>
 /**
  * note that it is possible to specify peerType with empty array as the projection. It can be useful to filter the predicates by the peer type that way!
  */
-export interface IFindOptions {
+export interface IFindPredicatesOptions {
     peerId?: string,
     peerType?: string | string[],
     projection?: string[],
 }
+

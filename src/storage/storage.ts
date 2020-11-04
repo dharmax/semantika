@@ -1,101 +1,77 @@
-import * as mongo from "mongodb"
-import {ClientSession, MongoClient, SessionOptions} from "mongodb"
+import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences, SessionOptions} from "mongodb"
 
-import {FilterFunction, SortSpec} from '../types'
-import {Mutex} from "../utils/mutex";
-import {Collection} from "./collection";
+import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
+import {BasicCollection} from "./basic-collection";
+import {EntityDcr} from "../descriptors";
 
 export type StorageSession = ClientSession
 export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
 
-class Storage {
+export {Cursor} from 'mongodb'
 
-    private collectionMutex = new Mutex()
-    private collections = {};
-    private queryDictionary: QueryDictionary
+export interface ICollection {
+    readonly name: string;
 
-    constructor( readonly dbClient: MongoClient) {
-    }
-    setQueryDictionary(dictionary: QueryDictionary) {
-        this.queryDictionary = dictionary
-    }
+    watch(callback: (change: ChangeStream) => Promise<boolean>, ...args): void;
 
-    async startSession(options?: SessionOptions): Promise<StorageSession> {
-        return this.dbClient.startSession(options)
-    }
+    updateDocumentUnsafe(_id: string, fields: Object): Promise<boolean>;
 
-    async collection(name: string, initFunc?: (col: Collection) => void, clazz?: Function): Promise<Collection> {
-        return this._collection(name, false, initFunc, clazz)
-    }
+    updateDocument(_id: string, fields: Object, version?: number, rawOperations: Object): Promise<any>;
 
-    async predicateCollection(name: string, initFunc?: (col: Collection) => void): Promise<Collection> {
-        return this._collection(name, true, initFunc)
-    }
+    findById<T extends Object>(_id: string, projection?: string[]): Promise<T>;
 
-    async collectionForEntityType(type: Function, initFunc?: (col: Collection) => void): Promise<Collection> {
-        initFunc = initFunc || type['initCollection']
-        const collectionName = type['collectionName'] || type.name;
-        return this.collection(collectionName, initFunc, type)
-    }
+    find(query, options: IFindOptions): Promise<Cursor>;
 
-    async purgeDatabase() {
+    findGenerator(query, options: IFindOptions): AsyncGenerator<Object>;
 
-        database = null
-        this.collections = {}
-        return await this.dbClient.dropDatabase()
-    }
+    distinct(field: string, query, options: IFindOptions): Promise<any>;
 
+    findSome<T>(query, options: IFindOptions): Promise<T[]>;
 
-    private async _collection(name: string, forPredicates = false, initFunc?: (col: Collection) => void, clazz?: Function): Promise<Collection> {
-        let self = this
-        return new Promise<Collection>((resolve, reject) => {
-            self.collectionMutex.lock(() => {
-                let col = self.collections[name]
-                if (col) {
-                    self.collectionMutex.release()
-                    resolve(col)
-                } else {
-                    self.initCollection(name, forPredicates, clazz).then(c => {
-                        initFunc && initFunc(c)
-                        resolve(c);
-                        self.collectionMutex.release()
-                    })
-                        .catch((e) => {
-                            self.collectionMutex.release()
-                            reject(e)
-                        })
+    findSomeStream<T>(query, options: IFindOptions, format): Promise<Cursor<T>>;
 
-                }
-            })
-        })
-    }
+    count(query, opts?: MongoCountPreferences): Promise<number>;
 
-    private async initCollection(name: string, forPredicates: boolean, clazz?: Function) {
+    findOne<T>(query, projection?: string[]): Promise<T>;
 
-        let col = await this.createCollection(name, forPredicates, clazz)
-        this.collections[name] = col
-        return col
-    }
+    load<T>(opt: IReadOptions, query?: Object): Promise<IReadResult>;
 
+    /**
+     * @param doc the record
+     * @returns on success, the id of the new entry
+     */
+    append(doc: Object): Promise<string>;
+
+    deleteById(_id: string): Promise<boolean>;
+
+    deleteByQuery(query: any): Promise<any>;
+
+    ensureIndex(keys: Object, options?: IndexOptions): any;
+
+    findOneAndModify(criteria: any, change: Object): Promise<any>;
+
+    createId(): string;
+}
+
+export interface IStorage {
+    setQueryDictionary(dictionary: QueryDictionary): void;
+
+    startSession(options?: SessionOptions): Promise<StorageSession>;
+
+    collection(name: string, initFunc?: (col: ICollection) => void, eDcr?: EntityDcr): Promise<ICollection>;
+
+    purgeDatabase(): Promise<any>;
+
+    initCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<ICollection>;
 
     /**
      * to be used only internally by Storage
      * @param name
      * @param forPredicates set to true to make it a special predicates collection
      * @param clazz the associated JS class. Optional.
-     * @returns {Collection}
+     * @returns {BasicCollection}
      */
-     async createCollection(name: string, forPredicates: boolean, clazz?: Function):Promise<Collection> {
-        try {
-            //  initialize actual collection
-            let collection = await this.dbClient.collection(name)
-
-            return forPredicates ? new PredicateCollection(name, collection) : new Collection(name, collection, clazz)
-        } catch (e) {
-            console.error(e)
-            return null
-        }
-    }
+    createCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<BasicCollection>;
 }
 
 export class DuplicateKeyError extends Error {
@@ -103,48 +79,6 @@ export class DuplicateKeyError extends Error {
         super('duplicate key in collection  ' + col)
     }   //
 }
-
-export const SEPARATOR = '_'
-
-export class PredicateCollection extends Collection {
-
-    constructor(name, collection) {
-        super(name, collection, null)
-    }
-}
-
-
-type dbAndClient = mongo.Db & { client: MongoClient }
-let database: dbAndClient = null
-
-let dbMutex = new Mutex()
-//
-// async function getDb(): Promise<dbAndClient> {
-//
-//     const dbUrl = await getDatabaseUrl()
-//     return new Promise<dbAndClient>(resolve => {
-//         dbMutex.lock(() => {
-//             if (database) {
-//                 dbMutex.release()
-//                 resolve(database)
-//             } else {
-//                 mongo.MongoClient.connect(dbUrl, <MongoClientOptions>{
-//                     useNewUrlParser: true,
-//                     useUnifiedTopology: true
-//                 }).then(client => {
-//                     database = Object.assign(client.db(getDatabaseName()), {client})
-//                     storageEventEmitter.emit('connected', {database})
-//                     dbMutex.release()
-//                     resolve(database)
-//                 }).catch(e => {
-//                     dbMutex.release()
-//                     console.error(e)
-//                     resolve(null)
-//                 })
-//             }
-//         })
-//     })
-// }
 
 export interface IFindOptions {
     batchSize?: number

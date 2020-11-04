@@ -1,6 +1,6 @@
-import {PredicateDcr} from "./predicate-descriptor";
+import {EntityDcr, PredicateDcr} from "./descriptors";
 
-export interface IRawOntology {
-    entityDcrs: Function[],
+export class IRawOntology {
+    entityDcrs: EntityDcr[]
     predicateDcrs: PredicateDcr[]
 }

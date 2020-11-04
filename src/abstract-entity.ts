@@ -1,20 +1,10 @@
 import {assignRole, IPermissionManaged, PrivilegeOwner, unassignRole} from "../../services/generic/privilege-service";
-import {
-    createPredicate,
-    deleteAllEntityPredicates,
-    findPredicates,
-    getOntology,
-    IFindOptions,
-    makeEntity,
-    pagePredicates,
-    Predicate
-} from "../model-manager";
-import {StandardFields, storage} from "../../services/generic/storage";
 import {all, map, props} from 'bluebird'
-import {log, LoggedException} from "../../services/generic/logger";
-import {IReadOptions, IReadResult} from "../../lib/common-generic-types";
-import {processTemplate} from "../../lib/template-processor";
-import {ProjectionItem, ProjectionPredicateItem} from "../../routes/routing-utils";
+import {SemanticPackage} from "./semantic-package";
+import {LoggedException} from "./utils/logged-exception";
+import {processTemplate} from "./utils/template-processor";
+import {ProjectionItem, ProjectionPredicateItem} from "./projection";
+import {StandardFields} from "./storage/storage";
 
 declare class User {
 
@@ -23,7 +13,6 @@ declare class User {
 
 export abstract class AbstractEntity implements IPermissionManaged {
 
-    readonly id
     private _version: number
     private permissionOwners
     protected parent
@@ -35,8 +24,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
     // static readonly collectionName = 'PodCollection'
 
 
-    protected constructor(id) {
-        this.id = id
+    protected constructor(readonly semanticPackage: SemanticPackage, readonly  id) {
     }
 
     // noinspection JSUnusedGlobalSymbols
@@ -51,20 +39,11 @@ export abstract class AbstractEntity implements IPermissionManaged {
     }
 
     get descriptor() {
-        return getOntology().edcr(this.typeName())
+        return this.semanticPackage.ontology.edcr(this.typeName())
     }
 
     get version() {
         return this._version
-    }
-
-    static async createFromDB<T extends AbstractEntity>(clazz: Function | string, entityId: any, ...projection: ProjectionItem[]): Promise<T> {
-        if (typeof clazz === 'string')
-            clazz = getOntology().edcr(clazz).clazz
-        if (!entityId)
-            throw new LoggedException('No entity id!')
-        let e = makeEntity(clazz, entityId)
-        return e.populate(...projection)
     }
 
     get template() {
@@ -73,11 +52,11 @@ export abstract class AbstractEntity implements IPermissionManaged {
     }
 
     async getAssociatedCollection() {
-        return storage.collectionForEntityType(this.constructor)
+        return this.semanticPackage.storage.collectionForEntityType(this.constructor)
     }
 
     async getPermissionOwners(): Promise<{ role, userId, userInfo }[]> {
-        return map(findPredicates(true, 'has-role-in', this.id, {
+        return map(this.semanticPackage.findPredicates(true, 'has-role-in', this.id, {
             peerType: 'User',
             projection: ['name', 'pictureUrl', 'city']
         }), async p => {
@@ -87,16 +66,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
                 userInfo: await p.getSource('name', 'email')
             }
         })
-    }
-
-    static async createNew<T extends AbstractEntity>(clazz: Function, fields: Object, superSetAllowed = false, cutExtraFields = true): Promise<T> {
-        const templateMethod = clazz['getTemplate']
-        const template = templateMethod && templateMethod()
-        fields = processTemplate(template, fields, superSetAllowed, cutExtraFields, clazz.name)
-        const record = fields
-        const col = await storage.collectionForEntityType(clazz)
-        let id = await col.append(record)
-        return <T>makeEntity(clazz, id, record)
     }
 
     /**
@@ -126,7 +95,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
 
         if (!actor.id)
             return []
-        const preds = <any[]>await findPredicates(false, 'has-role-in', actor.id, {
+        const preds = <any[]>await this.semanticPackage.findPredicates(false, 'has-role-in', actor.id, {
             peerId: this.id,
             peerType: this.typeName()
         })
@@ -207,7 +176,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
         return data as T;
     }
 
-    protected async populate<E extends AbstractEntity>(...projection: ProjectionItem[]): Promise<E> {
+    async populate<E extends AbstractEntity>(...projection: ProjectionItem[]): Promise<E> {
         const col = await this.getAssociatedCollection()
         const self = this
         const predicateProjections = projection && projection.filter(p => typeof p === 'object') as ProjectionPredicateItem[]
@@ -248,7 +217,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
         let col = await this.getAssociatedCollection()
         let deleteEntity = col.deleteById(this.id)
         await all([
-            deleteAllEntityPredicates(this.id),
+            this.semanticPackage.deleteAllEntityPredicates(this.id),
             deleteEntity
         ])
         return {
@@ -271,7 +240,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
         let containers = await this.getContainers()
         containers && containers.forEach(async c => userIds.push(...(await c.getInterestedParties(eventType))))
 
-        return Promise.all(userIds.map(uid => <Promise<User>>AbstractEntity.createFromDB('User', uid)))
+        return Promise.all(userIds.map(uid => <Promise<User>>this.semanticPackage.loadEntitu().createFromDB('User', uid)))
     }
 
     async outgoingPreds(predicateName: string, opts: IFindOptions = {}): Promise<Predicate[]> {

@@ -1,27 +1,25 @@
-import * as mongo
-    from "../../../../.config/JetBrains/WebStorm2020.2/javascript/extLibs/codota-types/mongodb/3.5.32/@types/mongodb";
-import {
-    ChangeStream,
-    Cursor,
-    MongoCountPreferences
-} from "../../../../.config/JetBrains/WebStorm2020.2/javascript/extLibs/codota-types/mongodb/3.5.32/@types/mongodb";
+import {ChangeStream, Collection as MongoCollection, Cursor, IndexOptions, MongoCountPreferences,} from "mongodb";
 import {LoggedException} from "../utils/logged-exception";
 import {IReadOptions, IReadResult} from "../types";
-import {props} from "../../../../.config/JetBrains/WebStorm2020.2/javascript/extLibs/codota-types/bluebird/3.5.33/@types/bluebird";
+import {props} from "bluebird";
 import {generate} from "short-uuid";
-import {DuplicateKeyError, IFindOptions, SEPARATOR, StreamFormats} from "./storage";
+import {DuplicateKeyError, ICollection, IFindOptions, StreamFormats} from "./storage";
+import {arrayToProjection} from "../utils/array-to-projection";
 
-export class Collection {
+export class BasicCollection implements ICollection {
 
     /**
      * Not to be accessed directly.
      * @param name
      * @param collection
-     * @param clazz
      */
-    constructor(public readonly name: string, private collection: mongo.Collection, readonly clazz: Function) {
+    constructor(private collection: MongoCollection) {
     }
 
+
+    get name() {
+        return this.collection.collectionName;
+    }
 
     watch(callback: (change: ChangeStream) => Promise<boolean>, ...args): void {
 
@@ -71,14 +69,6 @@ export class Collection {
         return result.result
     }
 
-    // async findById<T extends AbstractEntity | Object>(_id: string, projection?: string[]): Promise<T> {
-    //     const record: any = await this.findOne({_id}, projection)
-    //     if (!record)
-    //         return null
-    //     if (!this.clazz)
-    //         return record
-    //     return <T>this.sp.makeEntity(this.clazz, record._id, record)
-    // }
     async findById<T extends Object>(_id: string, projection?: string[]): Promise<T> {
         return this.findOne({_id}, projection)
     }
@@ -102,15 +92,6 @@ export class Collection {
         }
     }
 
-    // async* findGenerator(query, options: IFindOptions = {}): AsyncGenerator<AbstractEntity | Object> {
-    //     const cursor = await this.find(query, options)
-    //     while (await cursor.hasNext()) {
-    //         const record = await cursor.next()
-    //         const entity = makeEntity(undefined, undefined, record)
-    //         yield entity
-    //     }
-    // }
-
     async distinct(field: string, query, options: IFindOptions = {}): Promise<any> {
         return this.collection.distinct(field, query)
     }
@@ -129,23 +110,6 @@ export class Collection {
         return result as T[]
     }
 
-    // async findSome<T>(query, options: IFindOptions = {}): Promise<T[]> {
-    //
-    //     // @ts-ignore
-    //     const cursor = await this.find(...arguments)
-    //     const arrayP = await cursor.toArray()
-    //
-    //     let result = this.clazz ?
-    //         map(arrayP, rec => makeEntity(this.clazz, rec['_id'], rec))
-    //         :
-    //         arrayP
-    //
-    //     if (options.filterFunction)
-    //         result = await options.filterFunction(await result)
-    //
-    //     return result as T[]
-    // }
-
     async findSomeStream<T>(query, options: IFindOptions, format = StreamFormats.strings): Promise<Cursor<T>> {
         // @ts-ignore
         const cursor = await this.find(...arguments)
@@ -157,31 +121,10 @@ export class Collection {
                 return cursor.stream({
                     transform: rec => JSON.stringify(rec)
                 })
+            default:
+                throw new Error('Stream formant not supported')
         }
     }
-
-    //
-    // async findSomeStream<T>(query, options: IFindOptions, format = StreamFormats.strings): Promise<Cursor<T>> {
-    //     // @ts-ignore
-    //     const cursor = await this.find(...arguments)
-    //
-    //     switch (format) {
-    //         case StreamFormats.records:
-    //             return cursor.stream()
-    //         case StreamFormats.strings:
-    //             return cursor.stream({
-    //                 transform: rec => JSON.stringify(rec)
-    //             })
-    //         case StreamFormats.entities:
-    //             return cursor.stream({
-    //                 transform: rec => {
-    //                     return this.clazz ? makeEntity(this.clazz, rec._id, rec) : rec
-    //                 }
-    //             })
-    //
-    //     }
-    // }
-    //
 
     async count(query, opts?: MongoCountPreferences): Promise<number> {
         return this.collection.countDocuments(query, opts)
@@ -237,7 +180,7 @@ export class Collection {
 
     }
 
-    ensureIndex(keys: Object, options?: mongo.IndexOptions) {
+    ensureIndex(keys: Object, options?: IndexOptions) {
         return this.collection.createIndex(keys, options)
     }
 
@@ -245,26 +188,11 @@ export class Collection {
         return this.collection.findOneAndUpdate(criteria, {$set: change})
     }
 
-    protected createId() {
-        return this.clazz ?
-            `${this.clazz.name}${SEPARATOR}${generate()}`
-            : generate()
+    createId() {
+        return generate()
     }
 
-    // protected createId() {
-    //     return this.clazz ?
-    //         `${this.sp ? this.sp.name : ''}${SEPARATOR}${this.clazz.name}${SEPARATOR}${generate()}`
-    //         : generate()
-    // }
 }
 
 
-function arrayToProjection(projection: string[], cursor) {
-    projection = Array.from(new Set(projection))
-    let p = projection.reduce((res, cur) => {
-        cur && (res[cur] = 1)
-        return res
-    }, {})
-    cursor.project(p)
-}
 const DEFAULT_BATCH_SIZE = 100

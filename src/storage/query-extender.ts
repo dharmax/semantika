@@ -1,5 +1,5 @@
 import {IReadOptions} from "../types";
-import {Collection} from "./collection";
+import {BasicCollection} from "./collection";
 
 /**
  * You can use this class to assigned complex named queries. The query result is typically passed to the collection
@@ -16,7 +16,7 @@ export class QueryExtender {
      * @param theOptions options
      * @return the query
      */
-    getQueryFromReadOptions(collection: Collection, theOptions: IReadOptions) {
+    getQueryFromReadOptions(collection: BasicCollection, theOptions: IReadOptions) {
         if (!theOptions.queryName)
             return {}
         const queryConstructor = this.queryDictionary[theOptions.queryName]
