@@ -1,22 +1,19 @@
-import {Mutex} from "../utils/mutex";
 import {MongoClient, SessionOptions} from "mongodb";
-import {BasicCollection} from "./basic-collection";
-import {ICollection, IStorage, QueryDictionary, StorageSession} from "./storage";
-import {EntityDcr} from "../descriptors";
+import {AbstractStorage, QueryDictionary, StorageSession} from "./storage";
 
-export class MongoStorage implements IStorage {
+export class MongoStorage extends AbstractStorage {
 
-    private collectionMutex = new Mutex()
     private collections = {};
     private queryDictionary: QueryDictionary
     private dbClient: MongoClient
 
 
     constructor(uri: string) {
+        super()
         this.dbClient = new MongoClient(uri);
     }
 
-    async connect(uri: string) {
+    async connect() {
         return this.dbClient.connect();
     }
 
@@ -28,49 +25,18 @@ export class MongoStorage implements IStorage {
         return this.dbClient.startSession(options)
     }
 
-    async collection(name: string, initFunc?: (col: ICollection) => void, eDcr?: EntityDcr): Promise<ICollection> {
-        return this._collection(name, false, initFunc, eDcr)
-    }
-
     async purgeDatabase() {
 
         this.collections = {}
         return await this.dbClient.db().dropDatabase()
     }
 
-    initCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<ICollection> {
+    async getPhysicalCollection(name: string): Promise<any> {
 
+        return this.dbClient.db().collection(name)
     }
 
 
-    private async _collection(name: string, forPredicates = false, initFunc?: (col: ICollection) => void, clazz?: Function): Promise<BasicCollection> {
-        let self = this
-        return new Promise<BasicCollection>((resolve, reject) => {
-            self.collectionMutex.lock(() => {
-                let col = self.collections[name]
-                if (col) {
-                    self.collectionMutex.release()
-                    resolve(col)
-                } else {
-                    self.initCollection(name, forPredicates, clazz).then(c => {
-                        initFunc && initFunc(c)
-                        resolve(c);
-                        self.collectionMutex.release()
-                    })
-                        .catch((e) => {
-                            self.collectionMutex.release()
-                            reject(e)
-                        })
-
-                }
-            })
-        })
-    }
-
-    createCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<BasicCollection> {
-
-        return Promise.resolve(undefined);
-    }
 
 
 }

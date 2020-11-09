@@ -1,4 +1,4 @@
-import * as joi from '@hapi/joi'
+import * as joi from 'joi'
 import {LoggedException} from "./logged-exception";
 
 /**

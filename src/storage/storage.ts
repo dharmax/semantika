@@ -3,6 +3,8 @@ import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
 import {BasicCollection} from "./basic-collection";
 import {EntityDcr} from "../descriptors";
+import {Mutex} from "../utils/mutex";
+import {EntityCollection, PredicateCollection} from "./semantic-collections";
 
 export type StorageSession = ClientSession
 export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
@@ -16,7 +18,7 @@ export interface ICollection {
 
     updateDocumentUnsafe(_id: string, fields: Object): Promise<boolean>;
 
-    updateDocument(_id: string, fields: Object, version?: number, rawOperations: Object): Promise<any>;
+    updateDocument(_id: string, fields: Object, version?: number, rawOperations?: Object): Promise<any>;
 
     findById<T extends Object>(_id: string, projection?: string[]): Promise<T>;
 
@@ -53,25 +55,29 @@ export interface ICollection {
     createId(): string;
 }
 
-export interface IStorage {
-    setQueryDictionary(dictionary: QueryDictionary): void;
+export abstract class AbstractStorage {
 
-    startSession(options?: SessionOptions): Promise<StorageSession>;
+    entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection> {
+        return collectionForName(this, collectionName, false, initFunc, eDcr.clazz)
+    }
 
-    collection(name: string, initFunc?: (col: ICollection) => void, eDcr?: EntityDcr): Promise<ICollection>;
+    predicateCollection(): Promise<PredicateCollection> {
+        return collectionForName(this, '_predicates', true, predicateInitFunction)
+    }
 
-    purgeDatabase(): Promise<any>;
+    basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {
+        return collectionForName(this, collectionName, false, initFunc)
+    }
 
-    initCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<ICollection>;
+    abstract getPhysicalCollection(name: string, forPredicates: boolean, clazz: Function): Promise<ICollection>;
 
-    /**
-     * to be used only internally by Storage
-     * @param name
-     * @param forPredicates set to true to make it a special predicates collection
-     * @param clazz the associated JS class. Optional.
-     * @returns {BasicCollection}
-     */
-    createCollection(name: string, forPredicates: boolean, clazz?: Function): Promise<BasicCollection>;
+
+    abstract setQueryDictionary(dictionary: QueryDictionary): void;
+
+    abstract startSession(options?: SessionOptions): Promise<StorageSession>;
+
+    abstract purgeDatabase(): Promise<any>;
+
 }
 
 export class DuplicateKeyError extends Error {
@@ -86,13 +92,62 @@ export interface IFindOptions {
     from?: number
     projection?: string[]
     filterFunction?: FilterFunction
-    sort?:SortSpec
+    sort?: SortSpec
 }
 
 
 export const StandardFields: string[] = ['_created', '_lastUpdate', '_version']
 
 
-
 export enum StreamFormats { records, entities, strings}
 
+
+const collectionMutex = new Mutex();
+const collections: { [name: string]: ICollection } = {}
+
+
+async function collectionForName<T extends ICollection>(storage: AbstractStorage, name: string, forPredicates = false, initFunc?: (col: ICollection) => void, clazz?: Function): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        collectionMutex.lock(() => {
+            let col = collections[name]
+            if (col) {
+                collectionMutex.release()
+                resolve(col as T)
+            } else {
+                storage.getPhysicalCollection(name, forPredicates, clazz).then(c => {
+                    initFunc && initFunc(c)
+                    resolve(c as T);
+                }).catch((e) => {
+                    reject(e)
+                }).finally(collectionMutex.release)
+            }
+        })
+    })
+
+}
+
+const predicateInitFunction = col => {
+    col.ensureIndex({
+        predicateName: 1,
+        sourceId: 1,
+        targetType: 1
+    }, {})
+    col.ensureIndex({
+        predicateName: 1,
+        targetId: 1,
+        sourceType: 1
+    }, {})
+    col.ensureIndex({
+        sourceId: 1,
+        keys: 1
+    }, {})
+    col.ensureIndex({
+        targetId: 1,
+        keys: 1
+    }, {})
+    col.ensureIndex({
+        sourceId: 1,
+        targetId: 1,
+        predicateName: 1
+    }, {})
+}

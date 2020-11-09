@@ -8,15 +8,14 @@ import {ID_SEPARATOR} from "./utils/constants";
 import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem} from "./projection";
-import {EntityDcr, PredicateDcr, SemanticPartDescriptor} from "./descriptors";
-import {BasicCollection} from "./storage/basic-collection";
-import {IStorage} from "./storage/storage";
+import {EntityDcr, PredicateDcr} from "./descriptors";
+import {AbstractStorage} from "./storage/storage";
 
 export class SemanticPackage {
 
     readonly ontology: Ontology
 
-    constructor(readonly name: string, ontology: IRawOntology, readonly storage: IStorage, readonly parents: SemanticPackage[] = []) {
+    constructor(readonly name: string, ontology: IRawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
         this.ontology = new Ontology(this, ontology)
     }
 
@@ -59,7 +58,7 @@ export class SemanticPackage {
 
 // noinspection JSUnusedGlobalSymbols
     async predicateById(pid: string) {
-        const pCol: PredicateCollection = await this.getPredicateCollection()
+        const pCol: PredicateCollection = await this.storage.predicateCollection()
         const record = <IPredicateRecord>await pCol.findById(pid, undefined)
         if (record)
             return new Predicate(this, record)
@@ -72,7 +71,7 @@ export class SemanticPackage {
     }
 
     async createPredicate(source: AbstractEntity, pDcr: PredicateDcr, target: AbstractEntity, payload?: Object, selfKeys = {}): Promise<Predicate> {
-        let pCol: PredicateCollection = await this.getPredicateCollection()
+        let pCol: PredicateCollection = await this.storage.predicateCollection()
         let pred: IPredicateRecord = {
             predicateName: pDcr.name,
             sourceId: source.id,
@@ -118,13 +117,13 @@ export class SemanticPackage {
 
     async deletePredicate(predicate: Predicate) {
         let pId = predicate.id
-        let pCol = await this.getPredicateCollection()
+        let pCol = await this.storage.predicateCollection()
         return pCol.deleteById(pId)
     }
 
 
     async deleteAllEntityPredicates(entityId: string) {
-        let pcol = await this.getPredicateCollection()
+        let pcol = await this.storage.predicateCollection()
         return pcol.deleteByQuery({
             $or: [
                 {sourceId: entityId},
@@ -136,39 +135,41 @@ export class SemanticPackage {
     /**
      * This is the method by which predicates are searched and paged through
      * @param {boolean} incoming specify false for outgoing predicates
-     * @param {string} predicateName the name of the predicate
+     * @param {string|PredicateDcr} predicate the name of the predicate
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
      * @returns {Promise<Object[]}
      */
-    async findPredicates(incoming: boolean, predicateName: string, entityId: string, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
+    async findPredicates(incoming: boolean, predicate: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
         // noinspection ES6MissingAwait
-        return <Promise<Predicate[]>>this.loadPredicates(incoming, predicateName, entityId, opts, null)
+        return <Promise<Predicate[]>>this.loadPredicates(incoming, predicate, entityId, opts, null)
     }
 
 
     /**
      * This is the method by which predicates are searched and paged through
      * @param {boolean} incoming specify false for outgoing predicates
-     * @param {string} predicateName the name of the predicate
+     * @param {string|PredicateDcr} predicate the name of the predicate
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
      * @param {IReadOptions} pagination parameters. Null will return an array instead of IReadResult
      * @returns {Promise<Object[] | IReadResult>}
      */
-    async pagePredicates(incoming: boolean, predicateName: string, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
+    async pagePredicates(incoming: boolean, predicate: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
         // noinspection ES6MissingAwait
-        return <Promise<IReadResult>>this.loadPredicates(incoming, predicateName, entityId, opts, pagination)
+        return <Promise<IReadResult>>this.loadPredicates(incoming, predicate, entityId, opts, pagination)
     }
 
 
-    async loadPredicates(incoming: boolean, predicateName: string, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<Predicate[] | IReadResult | AbstractEntity[]> {
+    async loadPredicates(incoming: boolean, pred: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<Predicate[] | IReadResult | AbstractEntity[]> {
 
         const self = this
 
-        const pCol: PredicateCollection = await this.getPredicateCollection()
+        const pCol: PredicateCollection = await this.storage.predicateCollection()
 
-        const predicateNames = this.expandPredicate(predicateName)
+
+        const predicateDcr = typeof pred === "string" ? this.ontology.pdcr(pred) : pred;
+        const predicateNames = expandPredicate(predicateDcr)
         let query: any = predicateNames ? {
             predicateName: {$in: predicateNames}
         } : {};
@@ -200,7 +201,7 @@ export class SemanticPackage {
                     const peerType = pred[whichPeer + 'Type']
                     if (opts.peerType && opts.peerType != '*' && opts.peerType != peerType)
                         continue
-                    const f = self.ontology.edcr(peerType).clazz
+                    // const f = self.ontology.edcr(peerType).clazz
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
                     // pred.peerEntity = await f['createFromDB'](f, pred[whichPeer + "Id"], ...fieldProjection)
                 }
@@ -210,42 +211,6 @@ export class SemanticPackage {
 
     }
 
-
-    async getPredicateCollection() {
-        return this.storage.predicateCollection('PredicatesMain', col => {
-            col.ensureIndex({
-                predicateName: 1,
-                sourceId: 1,
-                targetType: 1
-            }, {})
-            col.ensureIndex({
-                predicateName: 1,
-                targetId: 1,
-                sourceType: 1
-            }, {})
-            col.ensureIndex({
-                sourceId: 1,
-                keys: 1
-            }, {})
-            col.ensureIndex({
-                targetId: 1,
-                keys: 1
-            }, {})
-            col.ensureIndex({
-                sourceId: 1,
-                targetId: 1,
-                predicateName: 1
-            }, {})
-        })
-    }
-
-    expandPredicate(predicateName: string) {
-        if (!predicateName)
-            return null
-        const pDcr = this.ontology.pdcr(predicateName)
-        let childrenNames = Object.keys(pDcr.children || {})
-        return childrenNames.concat(predicateName)
-    }
 
     /**
      * @param source either entity or its id
@@ -257,7 +222,7 @@ export class SemanticPackage {
     async predicatesBetween(source: AbstractEntity | string, target: AbstractEntity | string, bidirectional: boolean, predicateName?: string): Promise<Predicate[]> {
         if (!source || !target)
             return []
-        const predicates = await this.getPredicateCollection()
+        const predicates = await this.storage.predicateCollection()
         const sourceId = source['id'] || source
         const targetId = target['id'] || target
         const query: any = {}
@@ -273,13 +238,13 @@ export class SemanticPackage {
     }
 
     async predicateCollection(name: string, initFunc?: (col: PredicateCollection) => void): Promise<PredicateCollection> {
-        return this.storage._collection(name, true, initFunc)
+        return this.storage.predicateCollection()
     }
 
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {
         initFunc = initFunc || eDcr.initializer
         const collectionName = eDcr.collectionName || eDcr.clazz.name;
-        return this.storage.collection(collectionName, initFunc, eDcr)
+        return this.storage.entityCollection(collectionName, initFunc, eDcr)
     }
 
 
@@ -298,23 +263,12 @@ export class SemanticPackage {
         return e.populate(...projection)
     }
 
-
-    private async createCollection(name: string, dcr: SemanticPartDescriptor): Promise<BasicCollection | EntityCollection | PredicateCollection> {
-        try {
-            //  initialize actual collection
-            let collection = await this.storage.collection(name)
-
-            if (!dcr)
-                return new BasicCollection(name, collection)
-
-            if (dcr instanceof PredicateDcr)
-                return new PredicateCollection(this, name, collection)
-            if (dcr instanceof EntityDcr)
-                return new EntityCollection(this, name, collection)
-        } catch (e) {
-            console.error(e)
-            return null
-        }
-    }
-
 }
+
+function expandPredicate(predicateDcr: PredicateDcr): string[] {
+    if (!predicateDcr)
+        return null
+    let childrenNames = Object.keys(predicateDcr.children.map(dcr => dcr.name) || {})
+    return [...childrenNames, predicateDcr.name]
+}
+

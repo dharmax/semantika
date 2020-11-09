@@ -1,10 +1,13 @@
 import {assignRole, IPermissionManaged, PrivilegeOwner, unassignRole} from "../../services/generic/privilege-service";
 import {all, map, props} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
-import {LoggedException} from "./utils/logged-exception";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem, ProjectionPredicateItem} from "./projection";
 import {StandardFields} from "./storage/storage";
+import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
+import {Predicate} from "./model-manager";
+import {EntityDcr, PredicateDcr} from "./descriptors";
+import {logger} from "./utils/logger";
 
 declare class User {
 
@@ -15,7 +18,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
 
     private _version: number
     private permissionOwners
-    protected parent
 
     /**
      *
@@ -24,8 +26,9 @@ export abstract class AbstractEntity implements IPermissionManaged {
     // static readonly collectionName = 'PodCollection'
 
 
-    protected constructor(readonly semanticPackage: SemanticPackage, readonly  id) {
+    constructor(readonly semanticPackage: SemanticPackage, readonly id) {
     }
+
 
     // noinspection JSUnusedGlobalSymbols
     equals(entity: AbstractEntity): boolean {
@@ -38,7 +41,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
         return this.constructor.name
     }
 
-    get descriptor() {
+    get descriptor(): EntityDcr {
         return this.semanticPackage.ontology.edcr(this.typeName())
     }
 
@@ -52,7 +55,7 @@ export abstract class AbstractEntity implements IPermissionManaged {
     }
 
     async getAssociatedCollection() {
-        return this.semanticPackage.storage.collectionForEntityType(this.constructor)
+        return this.semanticPackage.collectionForEntityType(this.descriptor)
     }
 
     async getPermissionOwners(): Promise<{ role, userId, userInfo }[]> {
@@ -142,15 +145,14 @@ export abstract class AbstractEntity implements IPermissionManaged {
             const templateFieldNames = new Set(Object.keys(gt))
             for (let f of fields) {
                 if (!templateFieldNames.has(f) && !StandardFields.includes(f))
-                    log.warn(`Field ${f} doesn't appear in the template of ${this.typeName()} entity`)
+                    logger.warn(`Field ${f} doesn't appear in the template of ${this.typeName()} entity`)
             }
         }
         await this.populate(...missingFields)
-        const values = fields.reduce((a, f) => {
+        return fields.reduce((a, f) => {
             a[f] = this[f]
             return a
         }, {})
-        return values
     }
 
     async refresh<T extends AbstractEntity>() {
@@ -240,80 +242,80 @@ export abstract class AbstractEntity implements IPermissionManaged {
         let containers = await this.getContainers()
         containers && containers.forEach(async c => userIds.push(...(await c.getInterestedParties(eventType))))
 
-        return Promise.all(userIds.map(uid => <Promise<User>>this.semanticPackage.loadEntitu().createFromDB('User', uid)))
+        return Promise.all(userIds.map(uid => <Promise<User>>this.semanticPackage.loadEntity('User', uid)))
     }
 
-    async outgoingPreds(predicateName: string, opts: IFindOptions = {}): Promise<Predicate[]> {
-        return findPredicates(false, predicateName, this.id, opts)
+    async outgoingPreds(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
+        return this.semanticPackage.findPredicates(false, predicate, this.id, opts)
     }
 
-    async incomingPreds(predicateName: string, opts: IFindOptions = {}): Promise<Predicate[]> {
-        return findPredicates(true, predicateName, this.id, opts)
+    async incomingPreds(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
+        return this.semanticPackage.findPredicates(true, predicate, this.id, opts)
     }
 
-    async outgoingPredsPaging(predicateName: string, opts: IFindOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
-        return pagePredicates(false, predicateName, this.id, opts, pagination)
+    async outgoingPredsPaging(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
+        return this.semanticPackage.pagePredicates(false, predicate, this.id, opts, pagination)
     }
 
 
-    async incomingPredsPaging(predicateName: string, opts: IFindOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
-        return pagePredicates(true, predicateName, this.id, opts, pagination)
+    async incomingPredsPaging(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
+        return this.semanticPackage.pagePredicates(true, predicate, this.id, opts, pagination)
     }
 
-    /**
-     * This is a sophisticated value inheritance support. If the value is an object, it allow inner-field-level value inheritance
-     * @param fieldName
-     * @param accumulate - should it accumulate inner-fields for object value ?
-     * @param childVal - inner use only
-     */
-
-    async getFieldRecursive(fieldName: string, accumulate = false, childVal = {}) {
-        let val = await this.getField(fieldName)
-        if (accumulate) {
-            const parent = await this.getParent()
-            val = Object.assign(val, childVal)
-            return parent ? await parent.getFieldRecursive(fieldName, accumulate, val) : val
-
-        } else {
-            if (val)
-                return val
-
-            const parent = await this.getParent()
-            return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined
-        }
-
-    }
-
-    protected async getParent<T extends AbstractEntity>(): Promise<T> {
-        return this.parent || this.incomingPreds('parent-of').then(p => p.length && p[0].getSource()).then(t => this.parent = <T>t || undefined)
-    }
-
-    protected async getAllAncestors<T extends AbstractEntity>(): Promise<T[]> {
-
-        const parent: T = <T>await this.getParent()
-        if (!parent)
-            return []
-        return [parent].concat(<T[]>await parent.getAllAncestors())
-    }
+    // /**
+    //  * This is a sophisticated value inheritance support. If the value is an object, it allow inner-field-level value inheritance
+    //  * @param fieldName
+    //  * @param accumulate - should it accumulate inner-fields for object value ?
+    //  * @param childVal - inner use only
+    //  */
+    //
+    // async getFieldRecursive(fieldName: string, accumulate = false, childVal = {}) {
+    //     let val = await this.getField(fieldName)
+    //     if (accumulate) {
+    //         const parent = await this.getParent()
+    //         val = Object.assign(val, childVal)
+    //         return parent ? await parent.getFieldRecursive(fieldName, accumulate, val) : val
+    //
+    //     } else {
+    //         if (val)
+    //             return val
+    //
+    //         const parent = await this.getParent()
+    //         return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined
+    //     }
+    //
+    // }
+    // //
+    // protected async getParent<T extends AbstractEntity>(): Promise<T> {
+    //     return this.parent || this.incomingPreds('parent-of').then(p => p.length && p[0].getSource()).then(t => this.parent = <T>t || undefined)
+    // }
+    //
+    // protected async getAllAncestors<T extends AbstractEntity>(): Promise<T[]> {
+    //
+    //     const parent: T = <T>await this.getParent()
+    //     if (!parent)
+    //         return []
+    //     return [parent].concat(<T[]>await parent.getAllAncestors())
+    // }
 
     async unsetParent() {
         return this.incomingPreds('parent-of').then(preds =>
             preds && Promise.all(preds.map(p => p.erase())))
     }
 
-    async setParent<T extends AbstractEntity>(parent: T) {
-
-        await this.unsetParent()
-
-        // prevent circularity
-        const parentAncestors = await parent.getAllAncestors()
-        parentAncestors.forEach(entity => {
-            if (entity.id === this.id)
-                throw new LoggedException('Circular retailer parenthood attempted')
-        })
-
-        return createPredicate(parent, 'parent-of', this)
-    }
+    // async setParent<T extends AbstractEntity>(parent: T) {
+    //
+    //     await this.unsetParent()
+    //
+    //     // prevent circularity
+    //     const parentAncestors = await parent.getAllAncestors()
+    //     parentAncestors.forEach(entity => {
+    //         if (entity.id === this.id)
+    //             throw new LoggedException('Circular retailer parenthood attempted')
+    //     })
+    //
+    //     return this.semanticPackage.createPredicate(parent, 'parent-of', this)
+    // }
 
     async query(_iDepth, _oDepth) {
 
@@ -340,13 +342,13 @@ export abstract class AbstractEntity implements IPermissionManaged {
         }
     }
 
-    async getSubscribers() {
-        const preds = await this.incomingPreds('subscribes-to', {
-            peerType: 'User',
-            projection: ['name', 'id', 'gender', 'pictureUrl']
-        })
-        return preds.map(p => <User>p.peer)
-    }
+    // async getSubscribers() {
+    //     const preds = await this.incomingPreds('subscribes-to', {
+    //         peerType: 'User',
+    //         projection: ['name', 'id', 'gender', 'pictureUrl']
+    //     })
+    //     return preds.map(p => <User>p.peer)
+    // }
 
 }
 

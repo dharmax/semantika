@@ -1,12 +1,15 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
+    "module": "ES6",
     "target": "ESNext",
+    "moduleResolution": "Node",
     "sourceMap": true,
     "experimentalDecorators": true,
     "esModuleInterop": true,
-    "lib": [
-      "jasmine-ts"
+    "types": [
+      "jasmine",
+      "node",
+      "jasmine-expect"
     ]
   },
   "exclude": [

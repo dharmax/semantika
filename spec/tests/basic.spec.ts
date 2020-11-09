@@ -1,7 +1,6 @@
-import {beforeEach, describe, expect, it} from 'jasmine'
 import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../../src';
 import {MongoStorage} from "../../src/storage/mongo-storage";
-import {IStorage} from "../../src/storage/storage";
+import {AbstractStorage} from "../../src/storage/storage";
 import {EntityTemplate} from "../../src/utils/template-processor";
 import * as joi from 'joi'
 
@@ -12,7 +11,7 @@ describe("Testing Semantix", function () {
 
     it("should be able to create a Semantic Package and a collection ", async () => {
 
-        const storage: IStorage = new MongoStorage('mongodb://localhost');
+        const storage: AbstractStorage = new MongoStorage('mongodb://localhost');
 
         const entityDcrs = [Person.dcr, WorkPlace.dcr];
         const predicateDcrs = [worksFor]
@@ -25,6 +24,9 @@ describe("Testing Semantix", function () {
         const hooli = <WorkPlace>await sp.createEntity(WorkPlace.dcr, {name: 'Hooli'})
 
         const job = await sp.createPredicate(george, worksFor, hooli, {position: 'CTO'})
+
+        const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']})
+        foundPredicates.expect(foundPredicates).toBeArray()
 
     })
 })

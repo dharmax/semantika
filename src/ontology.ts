@@ -1,15 +1,14 @@
-import {AbstractEntity} from "./abstract-entity";
 import {SemanticPackage} from "./semantic-package";
 import {IRawOntology} from "./raw-ontology";
 import {LoggedException} from "./utils/logged-exception";
-import {PredicateDcr} from "./descriptors";
+import {EntityDcr, PredicateDcr} from "./descriptors";
 
 export class Ontology {
     private predicateDcrs: { [name: string]: PredicateDcr } = {}
-    private entityDcrs: { [name: string]: { clazz: typeof AbstractEntity } } = {}
+    private entityDcrs: { [name: string]: EntityDcr } = {}
 
     constructor(readonly semanticPackage: SemanticPackage, readonly definitions: IRawOntology) {
-        definitions.entityDcrs.forEach(e => this.entityDcrs[e.name] = {clazz: e})
+        definitions.entityDcrs.forEach(e => this.entityDcrs[e.name] = e)
         let allPdcrs = this.predicateDcrs
         process(definitions.predicateDcrs)
 
@@ -22,12 +21,13 @@ export class Ontology {
                     throw new LoggedException('Duplicate predicate descriptor: ' + pd.name)
                 allPdcrs[pd.name] = pd
                 pd.semanticPackage = self.semanticPackage
-                if (pd.parent) {
-                    if (parent)
-                        throw new LoggedException(`Attempt to override predicate parent ${pd.parent}in descriptor ${pd.name}`)
-                    parent.children.push(pd)
-                }
-                pd.parent = parent
+                pd.parents.forEach(pParent => {
+                    if (!pParent.children.includes(pd))
+                        pParent.children.push(pd)
+                })
+                if (parent && !pd.parents.includes(parent))
+                    pd.parents.push(parent)
+
                 pd.children && process(pd.children)
             }
         }
@@ -40,7 +40,7 @@ export class Ontology {
         return res
     }
 
-    edcr(name: string) {
+    edcr(name: string): EntityDcr {
         const res = this.entityDcrs[name]
         if (!res)
             throw new LoggedException('No such predicate descriptor ' + name)

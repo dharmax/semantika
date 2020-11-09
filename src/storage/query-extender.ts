@@ -1,5 +1,5 @@
 import {IReadOptions} from "../types";
-import {BasicCollection} from "./collection";
+import {BasicCollection} from "./basic-collection";
 
 /**
  * You can use this class to assigned complex named queries. The query result is typically passed to the collection
