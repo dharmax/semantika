@@ -71,7 +71,7 @@ export class EntityCollection extends BasicCollection implements SemanticArtifac
 
 export class PredicateCollection extends BasicCollection implements SemanticArtifact {
 
-    constructor(readonly semanticPackage: SemanticPackage, name, collection) {
+    constructor(readonly semanticPackage: SemanticPackage, collection) {
         super(collection)
     }
 }

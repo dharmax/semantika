@@ -2,7 +2,7 @@ import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences
 
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
 import {BasicCollection} from "./basic-collection";
-import {EntityDcr} from "../descriptors";
+import {EntityDcr, PredicateDcr} from "../descriptors";
 import {Mutex} from "../utils/mutex";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
 
@@ -57,28 +57,40 @@ export interface ICollection {
 
 export abstract class AbstractStorage {
 
-    async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection> {
-        const c = await collectionForName(this, collectionName, false, initFunc, eDcr.clazz) as EntityCollection
-        return new EntityCollection(eDcr, c)
-    }
+    abstract async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection>
 
-    async predicateCollection(name?: string): Promise<PredicateCollection> {
-        const c = await collectionForName(this, name || '_predicates', true, predicateInitFunction)
-        return new PredicateCollection()
-    }
+    abstract async predicateCollection(pDcr?: PredicateDcr): Promise<PredicateCollection>
 
-    basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {
-        return collectionForName(this, collectionName, false, initFunc)
-    }
+    abstract basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection>
 
     abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<ICollection>;
-
 
     abstract setQueryDictionary(dictionary: QueryDictionary): void;
 
     abstract startSession(options?: SessionOptions): Promise<StorageSession>;
 
     abstract purgeDatabase(): Promise<any>;
+
+    protected async collectionForName<T extends ICollection>(name: string, forPredicates = false, initFunc?: (col: ICollection) => void, clazz?: Function): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            collectionMutex.lock(() => {
+                let col = collections[name]
+                if (col) {
+                    collectionMutex.release()
+                    resolve(col as T)
+                } else {
+                    this.getPhysicalCollection(name, forPredicates).then(c => {
+                        collections[name] = c
+                        initFunc && initFunc(c)
+                        resolve(c as T);
+                    }).catch((e) => {
+                        reject(e)
+                    }).finally(collectionMutex.release)
+                }
+            })
+        })
+
+    }
 
 }
 
@@ -108,26 +120,6 @@ const collectionMutex = new Mutex();
 const collections: { [name: string]: ICollection } = {}
 
 
-async function collectionForName<T extends ICollection>(storage: AbstractStorage, name: string, forPredicates = false, initFunc?: (col: ICollection) => void, clazz?: Function): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-        collectionMutex.lock(() => {
-            let col = collections[name]
-            if (col) {
-                collectionMutex.release()
-                resolve(col as T)
-            } else {
-                storage.getPhysicalCollection(name, forPredicates).then(c => {
-                    collections[name] = c
-                    initFunc && initFunc(c)
-                    resolve(c as T);
-                }).catch((e) => {
-                    reject(e)
-                }).finally(collectionMutex.release)
-            }
-        })
-    })
-
-}
 
 const predicateInitFunction = col => {
     col.ensureIndex({

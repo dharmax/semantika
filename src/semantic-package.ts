@@ -72,7 +72,7 @@ export class SemanticPackage {
     }
 
     async createPredicate(source: AbstractEntity, pDcr: PredicateDcr, target: AbstractEntity, payload?: Object, selfKeys = {}): Promise<Predicate> {
-        let pCol: PredicateCollection = await this.storage.predicateCollection()
+        let pCol: PredicateCollection = await this.storage.predicateCollection(pDcr)
         let pred: IPredicateRecord = {
             predicateName: pDcr.name,
             sourceId: source.id,
