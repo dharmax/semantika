@@ -4,8 +4,7 @@
     "target": "ES2020",
     "moduleResolution": "Node",
     "sourceMap": true,
-    "experimentalDecorators": true,
-    "esModuleInterop": true
+    "experimentalDecorators": true
   },
   "lib": [
     "ES2020"

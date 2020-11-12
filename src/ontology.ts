@@ -8,11 +8,11 @@ export class Ontology {
     private entityDcrs: { [name: string]: EntityDcr } = {}
 
     constructor(readonly semanticPackage: SemanticPackage, readonly definitions: IRawOntology) {
+        const self = this
         definitions.entityDcrs.forEach(e => this.entityDcrs[e.name] = e)
         let allPdcrs = this.predicateDcrs
-        process(definitions.predicateDcrs)
 
-        const self = this
+        process(definitions.predicateDcrs)
 
         function process(predicateDcrs: PredicateDcr[], parent: PredicateDcr = undefined) {
             for (let pd of predicateDcrs) {

@@ -1,7 +1,6 @@
 import * as joi from 'joi'
 import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
 import {MongoStorage} from '../src/storage/mongo-storage';
-import {AbstractStorage} from "../src/storage/storage";
 import {EntityTemplate} from "../src/utils/template-processor";
 import {expect} from 'chai'
 
@@ -13,7 +12,8 @@ describe("Testing Semantix", function () {
 
     it("should be able to create a Semantic Package and a collection ", async () => {
 
-        const storage: AbstractStorage = new MongoStorage('mongodb://localhost');
+        const storage = new MongoStorage('mongodb://localhost');
+        await storage.connect()
 
         const entityDcrs = [Person.dcr, WorkPlace.dcr];
         const predicateDcrs = [worksFor]

@@ -22,8 +22,7 @@ export function processTemplate(template: Object, givenFields: Object, superSetA
             const templateEntry = template[fn]
             const validator = templateEntry && templateEntry['validate'];
             if (validator) {
-                // @ts-ignore
-                const {error, value} = joi.validate(fv, templateEntry)
+                const {error, value} = templateEntry.validate(fv)
                 if (error)
                     throw new LoggedException(`field '${fn}' in entity ${entityType} doesn't match template rules. ${error}`)
 

@@ -1,4 +1,3 @@
-import {assignRole, IPermissionManaged, PrivilegeOwner, unassignRole} from "../../services/generic/privilege-service";
 import {all, map, props} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
 import {processTemplate} from "./utils/template-processor";
@@ -14,7 +13,7 @@ declare class User {
     static createFromDB(User: User, uid: any)
 }
 
-export abstract class AbstractEntity implements IPermissionManaged {
+export abstract class AbstractEntity {
 
     private _version: number
     private permissionOwners
@@ -91,40 +90,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
     }
 
     /**
-     * @return the explicit roles given to the actor on this entity
-     * @param actor the actor
-     */
-    async getRolesForActor(actor: PrivilegeOwner): Promise<string[]> {
-
-        if (!actor.id)
-            return []
-        const preds = <any[]>await this.semanticPackage.findPredicates(false, 'has-role-in', actor.id, {
-            peerId: this.id,
-            peerType: this.typeName()
-        })
-        // noinspection UnnecessaryLocalVariableJS
-        const roleNames: string[] = preds.map(p => p.payload)
-        return roleNames
-    }
-
-    /**
-     * @return the  roles given to the actor on this entity explicitly and by heredity
-     * @param actor the actor
-     * @param roles used internally; caller shouldn't use it.
-     */
-    async getRolesForActorRecursive(actor: PrivilegeOwner, roles = new Map<AbstractEntity, string[]>()): Promise<Map<AbstractEntity, string[]>> {
-
-        roles.set(this, await this.getRolesForActor(actor))
-
-        const containers = await this.getContainers()
-        for (let c of containers) {
-            await c.getRolesForActorRecursive(actor, roles)
-        }
-
-        return roles
-    }
-
-    /**
      * populate and returns the specific field's value
      * @param field field name
      */
@@ -163,9 +128,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
         return this
     }
 
-    async assignRole(roleName: string, user) {
-        return assignRole(roleName, user, this)
-    }
 
     populateAll<T extends AbstractEntity>(): Promise<T> {
         return this.populate(...Object.keys(this.template))
@@ -205,10 +167,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
             this[ps.pName] = preds
         }
         return this
-    }
-
-    async unassignRole(roleName: string, user) {
-        return unassignRole(roleName, user, this)
     }
 
     /**
@@ -341,14 +299,6 @@ export abstract class AbstractEntity implements IPermissionManaged {
             return entity
         }
     }
-
-    // async getSubscribers() {
-    //     const preds = await this.incomingPreds('subscribes-to', {
-    //         peerType: 'User',
-    //         projection: ['name', 'id', 'gender', 'pictureUrl']
-    //     })
-    //     return preds.map(p => <User>p.peer)
-    // }
 
 }
 
