@@ -1,13 +1,15 @@
-import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../../src';
-import {MongoStorage} from "../../src/storage/mongo-storage";
-import {AbstractStorage} from "../../src/storage/storage";
-import {EntityTemplate} from "../../src/utils/template-processor";
 import * as joi from 'joi'
+import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
+import {MongoStorage} from '../src/storage/mongo-storage';
+import {AbstractStorage} from "../src/storage/storage";
+import {EntityTemplate} from "../src/utils/template-processor";
+import {expect} from 'chai'
 
 describe("Testing Semantix", function () {
 
     beforeEach(() => {
-    });
+
+    })
 
     it("should be able to create a Semantic Package and a collection ", async () => {
 
@@ -26,7 +28,8 @@ describe("Testing Semantix", function () {
         const job = await sp.createPredicate(george, worksFor, hooli, {position: 'CTO'})
 
         const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']})
-        foundPredicates.expect(foundPredicates).toBeArray()
+
+        expect(foundPredicates).to.have.members([job])
 
     })
 })

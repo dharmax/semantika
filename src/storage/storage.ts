@@ -61,8 +61,8 @@ export abstract class AbstractStorage {
         return collectionForName(this, collectionName, false, initFunc, eDcr.clazz)
     }
 
-    predicateCollection(): Promise<PredicateCollection> {
-        return collectionForName(this, '_predicates', true, predicateInitFunction)
+    predicateCollection(name?: string): Promise<PredicateCollection> {
+        return collectionForName(this, name || '_predicates', true, predicateInitFunction)
     }
 
     basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {

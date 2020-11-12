@@ -237,8 +237,8 @@ export class SemanticPackage {
         return (await predicates.findSome(query)).map((rec: IPredicateRecord) => new Predicate(this, rec))
     }
 
-    async predicateCollection(name: string, initFunc?: (col: PredicateCollection) => void): Promise<PredicateCollection> {
-        return this.storage.predicateCollection()
+    async predicateCollection(name?: string, initFunc?: (col: PredicateCollection) => void): Promise<PredicateCollection> {
+        return this.storage.predicateCollection(name)
     }
 
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {

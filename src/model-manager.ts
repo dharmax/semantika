@@ -58,7 +58,7 @@ export class Predicate implements IPredicateRecord {
     }
 
     async change(fields) {
-        let pCol: PredicateCollection = await this.semanticPackage.getPredicateCollection()
+        let pCol: PredicateCollection = await this.semanticPackage.predicateCollection()
         return pCol.updateDocument(this._id, fields, this._version)
     }
 
