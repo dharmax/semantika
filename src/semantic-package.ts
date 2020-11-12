@@ -36,7 +36,8 @@ export class SemanticPackage {
         clazz = typeof clazz == 'string' ? this.ontology.edcr(clazz).clazz : clazz
         if (!clazz)
             return record
-        const rType = record && (id || record._id).match(/^_(.*)_/)[1]
+        const idSegments = record && (id || record._id).split(ID_SEPARATOR)
+        const rType = idSegments[idSegments.length - 2]
         if (rType && (rType !== clazz.name))
             throw `Requested entity type ${clazz.name} does not match entity's record of type ${rType}.`
         // @ts-ignore

@@ -57,19 +57,21 @@ export interface ICollection {
 
 export abstract class AbstractStorage {
 
-    entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection> {
-        return collectionForName(this, collectionName, false, initFunc, eDcr.clazz)
+    async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection> {
+        const c = await collectionForName(this, collectionName, false, initFunc, eDcr.clazz) as EntityCollection
+        return new EntityCollection(eDcr, c)
     }
 
-    predicateCollection(name?: string): Promise<PredicateCollection> {
-        return collectionForName(this, name || '_predicates', true, predicateInitFunction)
+    async predicateCollection(name?: string): Promise<PredicateCollection> {
+        const c = await collectionForName(this, name || '_predicates', true, predicateInitFunction)
+        return new PredicateCollection()
     }
 
     basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {
         return collectionForName(this, collectionName, false, initFunc)
     }
 
-    abstract getPhysicalCollection(name: string, forPredicates: boolean, clazz: Function): Promise<ICollection>;
+    abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<ICollection>;
 
 
     abstract setQueryDictionary(dictionary: QueryDictionary): void;
@@ -114,7 +116,8 @@ async function collectionForName<T extends ICollection>(storage: AbstractStorage
                 collectionMutex.release()
                 resolve(col as T)
             } else {
-                storage.getPhysicalCollection(name, forPredicates, clazz).then(c => {
+                storage.getPhysicalCollection(name, forPredicates).then(c => {
+                    collections[name] = c
                     initFunc && initFunc(c)
                     resolve(c as T);
                 }).catch((e) => {
