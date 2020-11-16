@@ -1,4 +1,4 @@
-import {all, map, props} from 'bluebird'
+import {all, map} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem, ProjectionPredicateItem} from "./projection";
@@ -145,14 +145,11 @@ export abstract class AbstractEntity {
         const self = this
         const predicateProjections = projection && projection.filter(p => typeof p === 'object') as ProjectionPredicateItem[]
         let fieldsProjection = projection && projection.filter(p => typeof p === 'string') as string[]
-        let results: any = await props({
-            data: await col.findById(this.id, fieldsProjection && fieldsProjection.length && fieldsProjection || undefined),
-            permissionOwners: self.permissionOwners || await this.getPermissionOwners()
-        })
-        if (!results.data)
-            return undefined
-        Object.assign(this, results.data)
-        this.permissionOwners = results.permissionOwnersen
+
+        const fields = await col.findById(this.id, fieldsProjection && fieldsProjection.length && fieldsProjection || undefined)
+        if (!fields)
+            return null
+        Object.assign(this, fields)
         await this.populateRelated(predicateProjections)
 
         // @ts-ignore

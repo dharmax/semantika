@@ -9,12 +9,15 @@ export class Ontology {
 
     constructor(readonly semanticPackage: SemanticPackage, readonly definitions: IRawOntology) {
         const self = this
-        definitions.entityDcrs.forEach(e => this.entityDcrs[e.name] = e)
         let allPdcrs = this.predicateDcrs
 
         process(definitions.predicateDcrs)
 
         function process(predicateDcrs: PredicateDcr[], parent: PredicateDcr = undefined) {
+            definitions.entityDcrs.forEach(e => {
+                self.entityDcrs[e.name] = e
+                self.entityDcrs[e.name].semanticPackage = semanticPackage
+            })
             for (let pd of predicateDcrs) {
                 const e = allPdcrs[pd.name]
                 if (e)
@@ -43,7 +46,7 @@ export class Ontology {
     edcr(name: string): EntityDcr {
         const res = this.entityDcrs[name]
         if (!res)
-            throw new LoggedException('No such predicate descriptor ' + name)
+            throw new LoggedException('No such entity descriptor ' + name)
         return res
     }
 

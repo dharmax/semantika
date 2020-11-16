@@ -1,8 +1,9 @@
 import {MongoClient, SessionOptions} from "mongodb";
 import {AbstractStorage, QueryDictionary, StorageSession} from "./storage";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
-import {EntityDcr, PredicateDcr} from "../descriptors";
+import {EntityDcr} from "../descriptors";
 import {BasicCollection} from "./basic-collection";
+import {SemanticPackage} from "../semantic-package";
 
 export class MongoStorage extends AbstractStorage {
 
@@ -35,7 +36,6 @@ export class MongoStorage extends AbstractStorage {
     }
 
     async getPhysicalCollection(name: string): Promise<any> {
-
         return this.dbClient.db().collection(name)
     }
 
@@ -44,14 +44,13 @@ export class MongoStorage extends AbstractStorage {
         return new EntityCollection(eDcr, c)
     }
 
-    async predicateCollection(pDcr: PredicateDcr): Promise<PredicateCollection> {
-        const c = await super.collectionForName(pDcr || '_predicates', true)
-        return new PredicateCollection()
+    async predicateCollection(semanticPackage: SemanticPackage, name?: string): Promise<PredicateCollection> {
+        const c = await super.collectionForName(name, true)
+        return new PredicateCollection(semanticPackage, c)
     }
 
     basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {
         return super.collectionForName(collectionName, false, initFunc)
     }
-
 
 }

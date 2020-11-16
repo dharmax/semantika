@@ -26,40 +26,40 @@ export class SemanticPackage {
      * @param record the record by which to populate the entity
      */
     makeEntity<T extends AbstractEntity>(clazz: string | typeof AbstractEntity, id?, record?): T {
+        const idSegments = (id || record?._id).split(ID_SEPARATOR)
         if (!clazz) {
             id = id || record.id || record._id
             if (!id)
                 throw new Error('Need at least a fully qualified ID')
-            clazz = id.split(ID_SEPARATOR)[1]
+            clazz = idSegments[idSegments.length - 2]
         }
         // TODO check parents' ontologies; manage both dcrs and concretes in SP
         clazz = typeof clazz == 'string' ? this.ontology.edcr(clazz).clazz : clazz
         if (!clazz)
             return record
-        const idSegments = record && (id || record._id).split(ID_SEPARATOR)
         const rType = idSegments[idSegments.length - 2]
         if (rType && (rType !== clazz.name))
             throw `Requested entity type ${clazz.name} does not match entity's record of type ${rType}.`
         // @ts-ignore
-        let e = new clazz(id)
+        let e = new clazz(this, id)
         record && Object.assign(e, {id, _etype: clazz.name}, record)
         return e
     }
 
     async loadEntityById<T>(id: string, ...projection: string[]): Promise<T> {
-        const entityTypeName = id.split(ID_SEPARATOR)[1]
+        const idSegments = id.split(ID_SEPARATOR);
+        const entityTypeName = idSegments[idSegments.length - 2]
         const eDcr = this.ontology.edcr(entityTypeName)
         if (!eDcr)
             throw new Error(`No such entity type ${eDcr}`)
         // @ts-ignore
-        return eDcr.clazz.createFromDB(eDcr.clazz, id, ...projection)
-
+        return this.loadEntity(id, eDcr, ...projection)
     }
 
 
 // noinspection JSUnusedGlobalSymbols
     async predicateById(pid: string) {
-        const pCol: PredicateCollection = await this.storage.predicateCollection()
+        const pCol: PredicateCollection = await this.storage.predicateCollection(this, name)
         const record = <IPredicateRecord>await pCol.findById(pid, undefined)
         if (record)
             return new Predicate(this, record)
@@ -71,9 +71,15 @@ export class SemanticPackage {
         return null
     }
 
+    predicateCollection(pDcr: PredicateDcr): Promise<PredicateCollection> {
+        if (pDcr.semanticPackage === this)
+            return this.storage.predicateCollection(this, this.name + '_predications')
+        else return pDcr.semanticPackage.predicateCollection(pDcr)
+    }
+
     async createPredicate(source: AbstractEntity, pDcr: PredicateDcr, target: AbstractEntity, payload?: Object, selfKeys = {}): Promise<Predicate> {
-        let pCol: PredicateCollection = await this.storage.predicateCollection(pDcr)
-        let pred: IPredicateRecord = {
+        const pCol: PredicateCollection = await this.predicateCollection(pDcr)
+        const pred: IPredicateRecord = {
             predicateName: pDcr.name,
             sourceId: source.id,
             sourceType: source.constructor.name,
@@ -84,7 +90,7 @@ export class SemanticPackage {
         }
         await addKeys()
 
-        let pid = <string>await pCol.append(pred)
+        const pid = <string>await pCol.append(pred)
         pred['id'] = pred._id = pid
         return new Predicate(this, pred)
 
@@ -117,14 +123,13 @@ export class SemanticPackage {
 
 
     async deletePredicate(predicate: Predicate) {
-        let pId = predicate.id
-        let pCol = await this.storage.predicateCollection()
-        return pCol.deleteById(pId)
+        const pCol = await this.storage.predicateCollection(this, name)
+        return pCol.deleteById(predicate.id)
     }
 
 
     async deleteAllEntityPredicates(entityId: string) {
-        let pcol = await this.storage.predicateCollection()
+        const pcol = await this.storage.predicateCollection(this, name)
         return pcol.deleteByQuery({
             $or: [
                 {sourceId: entityId},
@@ -166,14 +171,14 @@ export class SemanticPackage {
 
         const self = this
 
-        const pCol: PredicateCollection = await this.storage.predicateCollection()
-
-
         const predicateDcr = typeof pred === "string" ? this.ontology.pdcr(pred) : pred;
+        const pCol: PredicateCollection = await this.predicateCollection(predicateDcr)
+
         const predicateNames = expandPredicate(predicateDcr)
         let query: any = predicateNames ? {
             predicateName: {$in: predicateNames}
         } : {};
+
         const whichPeer = incoming ? 'source' : 'target'
         const whichSelf = !incoming ? 'source' : 'target'
         const selfId = whichSelf + 'Id'
@@ -223,7 +228,7 @@ export class SemanticPackage {
     async predicatesBetween(source: AbstractEntity | string, target: AbstractEntity | string, bidirectional: boolean, predicateName?: string): Promise<Predicate[]> {
         if (!source || !target)
             return []
-        const predicates = await this.storage.predicateCollection()
+        const predicates = await this.storage.predicateCollection(this)
         const sourceId = source['id'] || source
         const targetId = target['id'] || target
         const query: any = {}
@@ -238,9 +243,6 @@ export class SemanticPackage {
         return (await predicates.findSome(query)).map((rec: IPredicateRecord) => new Predicate(this, rec))
     }
 
-    async predicateCollection(name?: string, initFunc?: (col: PredicateCollection) => void): Promise<PredicateCollection> {
-        return this.storage.predicateCollection(name)
-    }
 
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {
         initFunc = initFunc || eDcr.initializer

@@ -2,9 +2,10 @@ import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences
 
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
 import {BasicCollection} from "./basic-collection";
-import {EntityDcr, PredicateDcr} from "../descriptors";
+import {EntityDcr} from "../descriptors";
 import {Mutex} from "../utils/mutex";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
+import {SemanticPackage} from "../semantic-package";
 
 export type StorageSession = ClientSession
 export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
@@ -59,7 +60,7 @@ export abstract class AbstractStorage {
 
     abstract async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection>
 
-    abstract async predicateCollection(pDcr?: PredicateDcr): Promise<PredicateCollection>
+    abstract async predicateCollection(semanticPackage: SemanticPackage, name?: string): Promise<PredicateCollection>
 
     abstract basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection>
 
@@ -82,10 +83,12 @@ export abstract class AbstractStorage {
                     this.getPhysicalCollection(name, forPredicates).then(c => {
                         collections[name] = c
                         initFunc && initFunc(c)
+                        collectionMutex.release()
                         resolve(c as T);
                     }).catch((e) => {
+                        collectionMutex.release()
                         reject(e)
-                    }).finally(collectionMutex.release)
+                    })
                 }
             })
         })
