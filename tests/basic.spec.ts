@@ -29,7 +29,7 @@ describe("Testing Semantix", function () {
 
         const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']})
 
-        expect(foundPredicates).to.have.members([job])
+        expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
 
     })
 })

@@ -22,12 +22,16 @@ export class Predicate implements IPredicateRecord {
     private sourceEntity: AbstractEntity
     private targetEntity: AbstractEntity
 
-    constructor(readonly semanticPackage: SemanticPackage,record: IPredicateRecord) {
+    constructor(readonly semanticPackage: SemanticPackage, record: IPredicateRecord) {
         this._id = record._id || record['id']
         delete record['id']
         Object.assign(this, record)
         this.sourceEntity = record.peerIsSource && record.peerEntity
         this.targetEntity = !record.peerIsSource && record.peerEntity
+    }
+
+    get dcr() {
+        return this.semanticPackage.ontology.pdcr(this.predicateName)
     }
 
     get id() {
@@ -58,7 +62,7 @@ export class Predicate implements IPredicateRecord {
     }
 
     async change(fields) {
-        let pCol: PredicateCollection = await this.semanticPackage.predicateCollection()
+        let pCol: PredicateCollection = await this.semanticPackage.predicateCollection(this.dcr)
         return pCol.updateDocument(this._id, fields, this._version)
     }
 
