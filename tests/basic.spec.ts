@@ -6,21 +6,25 @@ import {expect} from 'chai'
 
 describe("Testing Semantix", function () {
 
+    let sp: SemanticPackage
+    before(async () => {
+        const storage = new MongoStorage('mongodb://localhost/testing-semantix');
+        await storage.connect()
+        await storage.purgeDatabase()
+        const entityDcrs = [Person.dcr, WorkPlace.dcr];
+        const predicateDcrs = [worksFor]
+        sp = new SemanticPackage('main', {
+            entityDcrs,
+            predicateDcrs
+        }, storage)
+
+    })
     beforeEach(() => {
 
     })
 
     it("should be able to create a Semantic Package and a collection ", async () => {
 
-        const storage = new MongoStorage('mongodb://localhost');
-        await storage.connect()
-
-        const entityDcrs = [Person.dcr, WorkPlace.dcr];
-        const predicateDcrs = [worksFor]
-        const sp = new SemanticPackage('main', {
-            entityDcrs,
-            predicateDcrs
-        }, storage)
 
         const george = <Person>await sp.createEntity(Person.dcr, {name: 'George'})
         const hooli = <WorkPlace>await sp.createEntity(WorkPlace.dcr, {name: 'Hooli'})

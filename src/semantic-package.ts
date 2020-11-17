@@ -246,7 +246,7 @@ export class SemanticPackage {
 
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {
         initFunc = initFunc || eDcr.initializer
-        const collectionName = eDcr.collectionName || eDcr.clazz.name;
+        const collectionName = this.name + ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
         return this.storage.entityCollection(collectionName, initFunc, eDcr)
     }
 
