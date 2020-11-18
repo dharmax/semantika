@@ -113,7 +113,7 @@ export interface IFindOptions {
 }
 
 
-export const StandardFields: string[] = ['_created', '_lastUpdate', '_version']
+export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', '_parent']
 
 
 export enum StreamFormats { records, entities, strings}

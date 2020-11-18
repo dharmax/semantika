@@ -25,24 +25,24 @@ export class SemanticPackage {
      * @param id the id, if there's no id in the record
      * @param record the record by which to populate the entity
      */
-    makeEntity<T extends AbstractEntity>(clazz: string | typeof AbstractEntity, id?, record?): T {
+    makeEntity<T extends AbstractEntity>(eDcr?: EntityDcr, id?, record?): T {
         const idSegments = (id || record?._id).split(ID_SEPARATOR)
-        if (!clazz) {
+        if (!eDcr) {
             id = id || record.id || record._id
             if (!id)
                 throw new Error('Need at least a fully qualified ID')
-            clazz = idSegments[idSegments.length - 2]
+            eDcr = this.ontology.edcr(idSegments[idSegments.length - 2])
         }
         // TODO check parents' ontologies; manage both dcrs and concretes in SP
-        clazz = typeof clazz == 'string' ? this.ontology.edcr(clazz).clazz : clazz
-        if (!clazz)
+        if (!eDcr)
             return record
         const rType = idSegments[idSegments.length - 2]
-        if (rType && (rType !== clazz.name))
-            throw `Requested entity type ${clazz.name} does not match entity's record of type ${rType}.`
+        if (rType && (rType !== eDcr.name))
+            throw `Requested entity type ${eDcr.name} does not match entity's record of type ${rType}.`
         // @ts-ignore
-        let e = new clazz(this, id)
-        record && Object.assign(e, {id, _etype: clazz.name}, record)
+        let e = new eDcr.clazz(this, id)
+        record && Object.assign(e, {id}, record)
+        // record && Object.assign(e, {id, _etype: eDcr.name}, record)
         return e
     }
 
@@ -207,9 +207,7 @@ export class SemanticPackage {
                     const peerType = pred[whichPeer + 'Type']
                     if (opts.peerType && opts.peerType != '*' && opts.peerType != peerType)
                         continue
-                    // const f = self.ontology.edcr(peerType).clazz
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
-                    // pred.peerEntity = await f['createFromDB'](f, pred[whichPeer + "Id"], ...fieldProjection)
                 }
             }
             return predicates.map(p => pagination && pagination.entityOnly ? p.peerEntity : new Predicate(self, p))
@@ -256,13 +254,13 @@ export class SemanticPackage {
         const record = fields
         const col = await this.collectionForEntityType(eDcr)
         let id = await col.append(record)
-        return <T>this.makeEntity(eDcr.clazz, id, record)
+        return <T>this.makeEntity(eDcr, id, record)
     }
 
-    async loadEntity<T extends AbstractEntity>(entityId: any, eDcr: EntityDcr, ...projection: ProjectionItem[]): Promise<T> {
+    async loadEntity<T extends AbstractEntity>(entityId: any, eDcr?: EntityDcr, ...projection: ProjectionItem[]): Promise<T> {
         if (!entityId)
             throw new LoggedException('No entity id!')
-        let e = <T>this.makeEntity(eDcr.clazz, entityId)
+        let e = <T>this.makeEntity(eDcr, entityId)
         return e.populate(...projection)
     }
 

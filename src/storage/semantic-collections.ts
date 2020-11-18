@@ -29,7 +29,7 @@ export class EntityCollection extends BasicCollection implements SemanticArtifac
 
         return cursor.stream({
             transform: rec => {
-                return this.semanticPackage.makeEntity(this.entityDcr.clazz, rec._id, rec)
+                return this.semanticPackage.makeEntity(this.entityDcr, rec._id, rec)
             }
         })
 
@@ -41,10 +41,10 @@ export class EntityCollection extends BasicCollection implements SemanticArtifac
         // @ts-ignore
         const arrayP = await super.findSome(...arguments)
 
-        let result = arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr.clazz, rec['_id'], rec))
+        let result = arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr, rec['_id'], rec))
 
         if (options.filterFunction)
-            result = await options.filterFunction(await result)
+            result = await options.filterFunction(result)
 
         return result as unknown as T[]
     }
@@ -54,7 +54,7 @@ export class EntityCollection extends BasicCollection implements SemanticArtifac
         if (!record)
             return null
         // @ts-ignore
-        return <T>this.semanticPackage.makeEntity(this.entityClass, record._id, record)
+        return <T>this.semanticPackage.makeEntity(this.entityDcr, record._id, record)
     }
 
     async* findGenerator(query, options: IFindOptions = {}): AsyncGenerator<AbstractEntity | Object> {
