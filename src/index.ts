@@ -6,3 +6,5 @@ export * from "./raw-ontology";
 export * from "./model-manager";
 export * from "./abstract-entity";
 export * from "./semantic-package";
+export * from "./storage/semantic-collections";
+export * from "./storage/basic-collection";
