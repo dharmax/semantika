@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "file": "storage-event-emitter.js",
+  "sourceRoot": "",
+  "sources": [
+    "../../../src/utils/storage-event-emitter.ts"
+  ],
+  "names": [],
+  "mappings": ";;;AAAA,iCAAiC;AAEpB,QAAA,mBAAmB,GAAG,IAAI,MAAM,CAAC,YAAY,EAAE,CAAA"
+}

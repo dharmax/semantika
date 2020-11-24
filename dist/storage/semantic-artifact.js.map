@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "file": "semantic-artifact.js",
+  "sourceRoot": "",
+  "sources": [
+    "../../src/storage/semantic-artifact.ts"
+  ],
+  "names": [],
+  "mappings": ""
+}

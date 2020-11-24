@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "file": "constants.js",
+  "sourceRoot": "",
+  "sources": [
+    "../../src/utils/constants.ts"
+  ],
+  "names": [],
+  "mappings": ";;;AAAa,QAAA,YAAY,GAAG,GAAG,CAAA"
+}
