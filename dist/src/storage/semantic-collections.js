@@ -3,107 +3,82 @@ Object.defineProperty(exports, "__esModule", {value: true});
 exports.PredicateCollection = exports.EntityCollection = exports.ArtifactCollection = void 0;
 const storage_1 = require("./storage");
 const constants_1 = require("../utils/constants");
-
 class ArtifactCollection {
     constructor(basicCollection) {
         this.basicCollection = basicCollection;
     }
-
     append(doc) {
+        doc._id = this.createId();
         return this.basicCollection.append(doc);
     }
-
     count(query, opts) {
         return this.basicCollection.count(query, opts);
     }
-
-    createId() {
-        return this.basicCollection.createId();
-    }
-
     deleteById(_id) {
         return this.basicCollection.deleteById(_id);
     }
-
     deleteByQuery(query) {
         return this.basicCollection.deleteByQuery(query);
     }
-
     distinct(field, query, options) {
         return this.basicCollection.distinct(field, query, options);
     }
-
     ensureIndex(keys, options) {
         return this.basicCollection.ensureIndex(keys, options);
     }
-
     find(query, options) {
         return this.basicCollection.find(query, options);
     }
-
     findById(_id, projection) {
         // @ts-ignore
         return this.basicCollection.findById(...arguments);
     }
-
     findGenerator(query, options) {
         // @ts-ignore
         return this.basicCollection.findGenerator(...arguments);
     }
-
     findOne(query, projection) {
         // @ts-ignore
         return this.basicCollection.findOne(...arguments);
     }
-
     findOneAndModify(criteria, change) {
         // @ts-ignore
         return this.basicCollection.findOneAndModify(...arguments);
     }
-
     findSome(query, options) {
         // @ts-ignore
         return this.basicCollection.findSome(...arguments);
     }
-
     findSomeStream(query, options, format) {
         // @ts-ignore
         return this.basicCollection.findSomeStream(...arguments);
     }
-
     load(opt, query) {
         // @ts-ignore
         return this.basicCollection.load(...arguments);
     }
-
     updateDocument(_id, fields, version, rawOperations) {
         // @ts-ignore
         return this.basicCollection.updateDocument(...arguments);
     }
-
     updateDocumentUnsafe(_id, fields) {
         // @ts-ignore
         return this.basicCollection.updateDocumentUnsafe(...arguments);
     }
-
     watch(callback, ...args) {
         // @ts-ignore
         return this.basicCollection.watch(...arguments);
     }
 }
-
 exports.ArtifactCollection = ArtifactCollection;
-
 class EntityCollection extends ArtifactCollection {
     constructor(entityDcr, collection) {
         super(collection);
         this.entityDcr = entityDcr;
     }
-
     createId() {
-        return `${this.entityDcr.name}${constants_1.ID_SEPARATOR}${this.basicCollection.createId()}`;
+        return `${this.semanticPackage.name}${constants_1.ID_SEPARATOR}${this.entityDcr.name}${constants_1.ID_SEPARATOR}${this.basicCollection.createId()}`;
     }
-
     get semanticPackage() {
         return this.entityDcr.semanticPackage;
     }
@@ -150,6 +125,10 @@ class PredicateCollection extends ArtifactCollection {
     constructor(semanticPackage, collection) {
         super(collection);
         this.semanticPackage = semanticPackage;
+    }
+
+    createId() {
+        return `${this.semanticPackage.name}${constants_1.ID_SEPARATOR}${this.basicCollection.createId()}`;
     }
 }
 exports.PredicateCollection = PredicateCollection;

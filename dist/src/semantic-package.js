@@ -17,7 +17,7 @@ class SemanticPackage {
     }
     /**
      * Create an entity instance from a record and possibly from id only. If it is not an entity, it just returns the record unchanged.
-     * @param clazz the entity class (the function)
+     * @param eDcr
      * @param id the id, if there's no id in the record
      * @param record the record by which to populate the entity
      */
@@ -116,13 +116,14 @@ class SemanticPackage {
             ]
         });
     }
+
     /**
      * This is the method by which predicates are searched and paged through
      * @param {boolean} incoming specify false for outgoing predicates
      * @param {string|PredicateDcr} predicate the name of the predicate
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
-     * @returns {Promise<Object[]}
+     * @returns
      */
     async findPredicates(incoming, predicate, entityId, opts = {}) {
         // noinspection ES6MissingAwait
@@ -230,7 +231,6 @@ function expandPredicate(predicateDcr) {
     let childrenNames = Object.keys(predicateDcr.children.map(dcr => dcr.name) || {});
     return [...childrenNames, predicateDcr.name];
 }
-
 class CollectionManager {
     constructor(semanticPackage, storage) {
         this.semanticPackage = semanticPackage;
@@ -238,10 +238,9 @@ class CollectionManager {
         this.collectionMutex = new mutex_1.Mutex();
         this.collections = {};
     }
-
     entityCollection(initFunc, eDcr) {
         const collectionName = this.semanticPackage.name + constants_1.ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
-        return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, this.semanticPackage), initFunc);
+        return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc));
     }
 
     async predicateCollection(p) {
@@ -253,7 +252,7 @@ class CollectionManager {
         return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c));
     }
 
-    async collectionForName(name, forPredicate, wrapper, initFunc) {
+    async collectionForName(name, forPredicate, wrapper) {
         return new Promise((resolve, reject) => {
             this.collectionMutex.lock(() => {
                 let col = this.collections[name];
@@ -264,7 +263,6 @@ class CollectionManager {
                     this.storage.getPhysicalCollection(name, forPredicate).then(physicalCollection => {
                         const newCollection = wrapper(physicalCollection);
                         this.collections[name] = newCollection;
-                        initFunc && initFunc(newCollection);
                         this.collectionMutex.release();
                         resolve(newCollection);
                     }).catch((e) => {

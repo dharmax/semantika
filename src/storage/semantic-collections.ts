@@ -13,7 +13,7 @@ export abstract class ArtifactCollection implements ICollection {
 
     readonly name: string;
 
-    append(doc: Object & { _id }) {
+    append(doc: Object & { _id? }) {
         doc._id = this.createId()
         return this.basicCollection.append(doc)
     }

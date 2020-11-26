@@ -29,7 +29,7 @@ export class SemanticPackage {
 
     /**
      * Create an entity instance from a record and possibly from id only. If it is not an entity, it just returns the record unchanged.
-     * @param clazz the entity class (the function)
+     * @param eDcr
      * @param id the id, if there's no id in the record
      * @param record the record by which to populate the entity
      */
@@ -221,7 +221,6 @@ export class SemanticPackage {
         }
 
     }
-
 
     /**
      * @param source either entity or its id
