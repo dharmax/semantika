@@ -54,7 +54,7 @@ class SemanticPackage {
 
     // noinspection JSUnusedGlobalSymbols
     async predicateById(pid) {
-        const pCol = await this.storage.predicateCollection(this, name);
+        const pCol = await this.storage.predicateCollection(this);
         const record = await pCol.findById(pid, undefined);
         if (record)
             return new model_manager_1.Predicate(this, record);
@@ -68,7 +68,7 @@ class SemanticPackage {
 
     predicateCollection(pDcr) {
         if (pDcr.semanticPackage === this)
-            return this.storage.predicateCollection(this, this.name + '_predications');
+            return this.storage.predicateCollection(this);
         else
             return pDcr.semanticPackage.predicateCollection(pDcr);
     }
@@ -113,12 +113,12 @@ class SemanticPackage {
     }
 
     async deletePredicate(predicate) {
-        const pCol = await this.storage.predicateCollection(this, name);
+        const pCol = await this.storage.predicateCollection(this);
         return pCol.deleteById(predicate.id);
     }
 
     async deleteAllEntityPredicates(entityId) {
-        const pcol = await this.storage.predicateCollection(this, name);
+        const pcol = await this.storage.predicateCollection(this);
         return pcol.deleteByQuery({
             $or: [
                 {sourceId: entityId},
@@ -224,7 +224,7 @@ class SemanticPackage {
     async collectionForEntityType(eDcr, initFunc) {
         initFunc = initFunc || eDcr.initializer;
         const collectionName = this.name + constants_1.ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
-        return this.storage.entityCollection(collectionName, initFunc, eDcr);
+        return this.storage.entityCollection(initFunc, eDcr);
     }
 
     async createEntity(eDcr, fields, superSetAllowed = false, cutExtraFields = true) {

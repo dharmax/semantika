@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", {value: true});
 exports.processTemplate = void 0;
 const logged_exception_1 = require("./logged-exception");
-
 /**
  * Takes an object template definition, data fields and process it. Processing it means, validating, setting
  * default values, removal or warning if extraneous fields found
@@ -48,6 +47,5 @@ function processTemplate(template, givenFields, superSetAllowed, strict, entityT
         }
     return fields;
 }
-
 exports.processTemplate = processTemplate;
 //# sourceMappingURL=template-processor.js.map

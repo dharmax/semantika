@@ -23,5 +23,5 @@ __exportStar(require("./model-manager"), exports);
 __exportStar(require("./abstract-entity"), exports);
 __exportStar(require("./semantic-package"), exports);
 __exportStar(require("./storage/semantic-collections"), exports);
-__exportStar(require("./storage/basic-collection"), exports);
+__exportStar(require("./storage/mongo-basic-collection"), exports);
 //# sourceMappingURL=index.js.map

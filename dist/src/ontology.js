@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", {value: true});
 exports.Ontology = void 0;
 const logged_exception_1 = require("./utils/logged-exception");
-
 class Ontology {
     constructor(semanticPackage, definitions) {
         this.semanticPackage = semanticPackage;
@@ -12,7 +11,6 @@ class Ontology {
         const self = this;
         let allPdcrs = this.predicateDcrs;
         process(definitions.predicateDcrs);
-
         function process(predicateDcrs, parent = undefined) {
             definitions.entityDcrs.forEach(e => {
                 self.entityDcrs[e.name] = e;
@@ -34,25 +32,21 @@ class Ontology {
             }
         }
     }
-
     pdcr(name) {
         const res = this.predicateDcrs[name];
         if (!res)
             throw new logged_exception_1.LoggedException('No such predicate descriptor ' + name);
         return res;
     }
-
     edcr(name) {
         const res = this.entityDcrs[name];
         if (!res)
             throw new logged_exception_1.LoggedException('No such entity descriptor ' + name);
         return res;
     }
-
     edcrNames() {
         return Object.keys(this.entityDcrs);
     }
 }
-
 exports.Ontology = Ontology;
 //# sourceMappingURL=ontology.js.map

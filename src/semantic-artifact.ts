@@ -1,4 +1,4 @@
-import {SemanticPackage} from "../semantic-package";
+import {SemanticPackage} from "./semantic-package";
 
 export interface SemanticArtifact {
 

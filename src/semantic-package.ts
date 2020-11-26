@@ -3,20 +3,28 @@ import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
 import {Predicate} from "./model-manager";
-import {EntityCollection, IPredicateRecord, PredicateCollection} from "./storage/semantic-collections";
+import {
+    ArtifactCollection,
+    EntityCollection,
+    IPredicateRecord,
+    PredicateCollection
+} from "./storage/semantic-collections";
 import {ID_SEPARATOR} from "./utils/constants";
 import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem} from "./projection";
 import {EntityDcr, PredicateDcr} from "./descriptors";
-import {AbstractStorage} from "./storage/storage";
+import {AbstractStorage, IPhysicalCollection} from "./storage/storage";
+import {Mutex} from "./utils/mutex";
 
 export class SemanticPackage {
 
     readonly ontology: Ontology
+    private collectionManager: CollectionManager;
 
     constructor(readonly name: string, ontology: IRawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
         this.ontology = new Ontology(this, ontology)
+        this.collectionManager = new CollectionManager(this, storage)
     }
 
     /**
@@ -59,7 +67,7 @@ export class SemanticPackage {
 
 // noinspection JSUnusedGlobalSymbols
     async predicateById(pid: string) {
-        const pCol: PredicateCollection = await this.storage.predicateCollection(this, name)
+        const pCol: PredicateCollection = await this.collectionManager.predicateCollection(pid)
         const record = <IPredicateRecord>await pCol.findById(pid, undefined)
         if (record)
             return new Predicate(this, record)
@@ -72,9 +80,7 @@ export class SemanticPackage {
     }
 
     predicateCollection(pDcr: PredicateDcr): Promise<PredicateCollection> {
-        if (pDcr.semanticPackage === this)
-            return this.storage.predicateCollection(this, this.name + '_predications')
-        else return pDcr.semanticPackage.predicateCollection(pDcr)
+        return this.collectionManager.predicateCollection(pDcr)
     }
 
     async createPredicate(source: AbstractEntity, pDcr: PredicateDcr, target: AbstractEntity, payload?: Object, selfKeys = {}): Promise<Predicate> {
@@ -123,13 +129,14 @@ export class SemanticPackage {
 
 
     async deletePredicate(predicate: Predicate) {
-        const pCol = await this.storage.predicateCollection(this, name)
+        const pCol = await this.collectionManager.predicateCollection(predicate)
         return pCol.deleteById(predicate.id)
     }
 
 
     async deleteAllEntityPredicates(entityId: string) {
-        const pcol = await this.storage.predicateCollection(this, name)
+        // TODO this is db-dependent and also dependent on a single pred collection - should be improved
+        const pcol = await this.collectionManager.predicateCollection()
         return pcol.deleteByQuery({
             $or: [
                 {sourceId: entityId},
@@ -226,7 +233,7 @@ export class SemanticPackage {
     async predicatesBetween(source: AbstractEntity | string, target: AbstractEntity | string, bidirectional: boolean, predicateName?: string): Promise<Predicate[]> {
         if (!source || !target)
             return []
-        const predicates = await this.storage.predicateCollection(this)
+        const predicates = await this.collectionManager.predicateCollection()
         const sourceId = source['id'] || source
         const targetId = target['id'] || target
         const query: any = {}
@@ -244,8 +251,7 @@ export class SemanticPackage {
 
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {
         initFunc = initFunc || eDcr.initializer
-        const collectionName = this.name + ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
-        return this.storage.entityCollection(collectionName, initFunc, eDcr)
+        return this.collectionManager.entityCollection(initFunc, eDcr)
     }
 
 
@@ -272,4 +278,53 @@ function expandPredicate(predicateDcr: PredicateDcr): string[] {
     let childrenNames = Object.keys(predicateDcr.children.map(dcr => dcr.name) || {})
     return [...childrenNames, predicateDcr.name]
 }
+
+
+class CollectionManager {
+    collectionMutex = new Mutex();
+    collections: { [name: string]: ArtifactCollection } = {}
+
+    constructor(private semanticPackage, private storage: AbstractStorage) {
+    }
+
+    entityCollection(initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): EntityCollection | Promise<EntityCollection> {
+        const collectionName = this.semanticPackage.name + ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
+        return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc))
+    }
+
+    async predicateCollection(p?: Predicate | string | PredicateDcr): Promise<PredicateCollection> {
+        if (typeof p == 'string')
+            return this.collectionForName(p, true, c => this.storage.makePredicateCollection(this.semanticPackage, c))
+        // @ts-ignore
+        const pDcr: PredicateDcr = p && p.constructor.name === 'PredicateDcr' ? p : (p as Predicate).dcr
+
+        const collectionName = pDcr.collectionName || (this.semanticPackage.name + ID_SEPARATOR + '_Predicates')
+        return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c))
+    }
+
+    async collectionForName<T extends ArtifactCollection>(name: string, forPredicate: boolean, wrapper: (pc: IPhysicalCollection) => ArtifactCollection): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            this.collectionMutex.lock(() => {
+                let col = this.collections[name]
+                if (col) {
+                    this.collectionMutex.release()
+                    resolve(col as T)
+                } else {
+                    this.storage.getPhysicalCollection(name, forPredicate).then(physicalCollection => {
+                        const newCollection = wrapper(physicalCollection)
+                        this.collections[name] = newCollection
+                        this.collectionMutex.release()
+                        resolve(newCollection as T);
+                    }).catch((e) => {
+                        this.collectionMutex.release()
+                        reject(e)
+                    })
+                }
+            })
+        })
+
+    }
+}
+
+
 

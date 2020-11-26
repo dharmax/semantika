@@ -27,24 +27,20 @@ describe("Testing Semantix", function () {
         chai_1.expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
     });
 });
-
 class Person extends src_1.AbstractEntity {
     getContainers() {
         return Promise.resolve([]);
     }
 }
-
 Person.template = {
     name: joi.string().required()
 };
 Person.dcr = new src_1.EntityDcr(Person, Person.template);
-
 class WorkPlace extends src_1.AbstractEntity {
     getContainers() {
         return Promise.resolve([]);
     }
 }
-
 WorkPlace.template = {
     name: joi.string().required()
 };

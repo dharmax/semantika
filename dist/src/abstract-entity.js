@@ -6,7 +6,6 @@ const template_processor_1 = require("./utils/template-processor");
 const storage_1 = require("./storage/storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
-
 class AbstractEntity {
     /**
      *
@@ -17,33 +16,26 @@ class AbstractEntity {
         this.semanticPackage = semanticPackage;
         this.id = id;
     }
-
     // noinspection JSUnusedGlobalSymbols
     equals(entity) {
         return this === entity || this.id === entity.id || this.id.toString() == entity.id.toString();
     }
-
     typeName() {
         return this.constructor.name;
     }
-
     get descriptor() {
         return this.semanticPackage.ontology.edcr(this.typeName());
     }
-
     get version() {
         return this._version;
     }
-
     get template() {
         const t = this.constructor['getTemplate'];
         return t && t() || null;
     }
-
     async getAssociatedCollection() {
         return this.semanticPackage.collectionForEntityType(this.descriptor);
     }
-
     async getPermissionOwners() {
         return bluebird_1.map(this.semanticPackage.findPredicates(true, 'has-role-in', this.id, {
             peerType: 'User',
@@ -56,7 +48,6 @@ class AbstractEntity {
             };
         });
     }
-
     /**
      * Updates the specific fields-values of this entity in the memory and the database. Uses optimistic locking.
      * @param fieldsToUpdate the object with the field to change and their new values
@@ -75,7 +66,6 @@ class AbstractEntity {
         }
         return null;
     }
-
     /**
      * populate and returns the specific field's value
      * @param field field name
@@ -84,7 +74,6 @@ class AbstractEntity {
         await this.getFields(field);
         return this[field];
     }
-
     /**
      * populate with the specified fields and return their values
      * @param fields the list of fields or non, for the automatic usage of the fields mentioned in the entity's template.
@@ -106,25 +95,21 @@ class AbstractEntity {
             return a;
         }, {});
     }
-
     async refresh() {
         // @ts-ignore
         const e = await this.constructor.createFromDB(this.constructor, this.id, ...Object.keys(this));
         Object.assign(this, e);
         return this;
     }
-
     populateAll() {
         return this.populate(...Object.keys(this.template));
     }
-
     async fullDto(options) {
         const data = await this.getFields(...Object.keys(this.template), '_created', '_lastUpdate');
         data.id = this.id;
         data._entityType = this.typeName();
         return data;
     }
-
     async populate(...projection) {
         const col = await this.getAssociatedCollection();
         const self = this;
@@ -138,7 +123,6 @@ class AbstractEntity {
         // @ts-ignore
         return this;
     }
-
     async populateRelated(predicateSpecs) {
         for (let ps of predicateSpecs) {
             const preds = ps.in ?
@@ -148,7 +132,6 @@ class AbstractEntity {
         }
         return this;
     }
-
     /**
      * Truly deletes an entity along with the predicates connected to it. Use with caution.
      * @returns {Promise<{entityId: any}>}
@@ -164,7 +147,6 @@ class AbstractEntity {
             entityId: this.id,
         };
     }
-
     // /**
     //  * This method is part of the notification logic. The notification service uses it to see to whom to notify about
     //  * something.
@@ -186,26 +168,21 @@ class AbstractEntity {
     async outgoingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(false, predicate, this.id, opts);
     }
-
     async incomingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(true, predicate, this.id, opts);
     }
-
     async outgoingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(false, predicate, this.id, opts, pagination);
     }
-
     async incomingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(true, predicate, this.id, opts, pagination);
     }
-
     async getParent() {
         if (typeof this._parent == 'string') {
             this._parent = await this.semanticPackage.loadEntity(this._parent);
         }
         return this._parent;
     }
-
     /**
      * This is a sophisticated value inheritance support. If the value is an object, it allow inner-field-level value inheritance
      * @param fieldName
@@ -224,7 +201,6 @@ class AbstractEntity {
             return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined;
         }
     }
-
     async getAllAncestors() {
         const parent = await this.getParent();
         if (!parent)
@@ -232,7 +208,6 @@ class AbstractEntity {
         // @ts-ignore
         return [parent, ...(await this.parent.getAllAncestors())];
     }
-
     async setParent(parent) {
         // prevent circularity
         const parentAncestors = await parent.getAllAncestors();
@@ -242,11 +217,9 @@ class AbstractEntity {
         });
         return await this.update({_parent: parent.id});
     }
-
     async query(_iDepth, _oDepth) {
         await this.fullDto();
         return populateConnections(this, _iDepth, _oDepth);
-
         async function populateConnections(entity, iDepth, oDepth) {
             if (iDepth) {
                 const predicates = await entity.incomingPreds(undefined, {peerType: '*'});
@@ -264,6 +237,5 @@ class AbstractEntity {
         }
     }
 }
-
 exports.AbstractEntity = AbstractEntity;
 //# sourceMappingURL=abstract-entity.js.map

@@ -6,15 +6,15 @@ const model_manager_1 = require("./model-manager");
 const constants_1 = require("./utils/constants");
 const ontology_1 = require("./ontology");
 const template_processor_1 = require("./utils/template-processor");
-
+const mutex_1 = require("./utils/mutex");
 class SemanticPackage {
     constructor(name, ontology, storage, parents = []) {
         this.name = name;
         this.storage = storage;
         this.parents = parents;
         this.ontology = new ontology_1.Ontology(this, ontology);
+        this.collectionManager = new CollectionManager(this, storage);
     }
-
     /**
      * Create an entity instance from a record and possibly from id only. If it is not an entity, it just returns the record unchanged.
      * @param clazz the entity class (the function)
@@ -41,7 +41,6 @@ class SemanticPackage {
         // record && Object.assign(e, {id, _etype: eDcr.name}, record)
         return e;
     }
-
     async loadEntityById(id, ...projection) {
         const idSegments = id.split(constants_1.ID_SEPARATOR);
         const entityTypeName = idSegments[idSegments.length - 2];
@@ -51,10 +50,9 @@ class SemanticPackage {
         // @ts-ignore
         return this.loadEntity(id, eDcr, ...projection);
     }
-
     // noinspection JSUnusedGlobalSymbols
     async predicateById(pid) {
-        const pCol = await this.storage.predicateCollection(this, name);
+        const pCol = await this.collectionManager.predicateCollection(pid);
         const record = await pCol.findById(pid, undefined);
         if (record)
             return new model_manager_1.Predicate(this, record);
@@ -65,14 +63,9 @@ class SemanticPackage {
         }
         return null;
     }
-
     predicateCollection(pDcr) {
-        if (pDcr.semanticPackage === this)
-            return this.storage.predicateCollection(this, this.name + '_predications');
-        else
-            return pDcr.semanticPackage.predicateCollection(pDcr);
+        return this.collectionManager.predicateCollection(pDcr);
     }
-
     async createPredicate(source, pDcr, target, payload, selfKeys = {}) {
         const pCol = await this.predicateCollection(pDcr);
         const pred = {
@@ -88,7 +81,6 @@ class SemanticPackage {
         const pid = await pCol.append(pred);
         pred['id'] = pred._id = pid;
         return new model_manager_1.Predicate(this, pred);
-
         async function addKeys() {
             await addKeyForEntity('target', target);
             await addKeyForEntity('source', source);
@@ -99,7 +91,6 @@ class SemanticPackage {
                     throw new logged_exception_1.LoggedException(`Bad predicate self-key: ${k}`);
                 pred[k] = selfKeys[k];
             });
-
             async function addKeyForEntity(sideName, e) {
                 const fieldNames = pDcr.keys[sideName];
                 if (!fieldNames || !fieldNames.length)
@@ -111,14 +102,13 @@ class SemanticPackage {
             }
         }
     }
-
     async deletePredicate(predicate) {
-        const pCol = await this.storage.predicateCollection(this, name);
+        const pCol = await this.collectionManager.predicateCollection(predicate);
         return pCol.deleteById(predicate.id);
     }
-
     async deleteAllEntityPredicates(entityId) {
-        const pcol = await this.storage.predicateCollection(this, name);
+        // TODO this is db-dependent and also dependent on a single pred collection - should be improved
+        const pcol = await this.collectionManager.predicateCollection();
         return pcol.deleteByQuery({
             $or: [
                 {sourceId: entityId},
@@ -126,7 +116,6 @@ class SemanticPackage {
             ]
         });
     }
-
     /**
      * This is the method by which predicates are searched and paged through
      * @param {boolean} incoming specify false for outgoing predicates
@@ -139,7 +128,6 @@ class SemanticPackage {
         // noinspection ES6MissingAwait
         return this.loadPredicates(incoming, predicate, entityId, opts, null);
     }
-
     /**
      * This is the method by which predicates are searched and paged through
      * @param {boolean} incoming specify false for outgoing predicates
@@ -153,7 +141,6 @@ class SemanticPackage {
         // noinspection ES6MissingAwait
         return this.loadPredicates(incoming, predicate, entityId, opts, pagination);
     }
-
     async loadPredicates(incoming, pred, entityId, opts = {}, pagination) {
         const self = this;
         const predicateDcr = typeof pred === "string" ? this.ontology.pdcr(pred) : pred;
@@ -181,7 +168,6 @@ class SemanticPackage {
             const predicates = await pCol.findSome(query);
             return await enrich(predicates);
         }
-
         async function enrich(predicates) {
             // if projection is specified or peer-type, we should populate the predicates with fields from the peer
             if (opts.projection || opts.peerType) {
@@ -195,7 +181,6 @@ class SemanticPackage {
             return predicates.map(p => pagination && pagination.entityOnly ? p.peerEntity : new model_manager_1.Predicate(self, p));
         }
     }
-
     /**
      * @param source either entity or its id
      * @param target either entity or its id
@@ -206,7 +191,7 @@ class SemanticPackage {
     async predicatesBetween(source, target, bidirectional, predicateName) {
         if (!source || !target)
             return [];
-        const predicates = await this.storage.predicateCollection(this);
+        const predicates = await this.collectionManager.predicateCollection();
         const sourceId = source['id'] || source;
         const targetId = target['id'] || target;
         const query = {};
@@ -220,13 +205,10 @@ class SemanticPackage {
         predicateName && (query.predicateName = predicateName);
         return (await predicates.findSome(query)).map((rec) => new model_manager_1.Predicate(this, rec));
     }
-
     async collectionForEntityType(eDcr, initFunc) {
         initFunc = initFunc || eDcr.initializer;
-        const collectionName = this.name + constants_1.ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
-        return this.storage.entityCollection(collectionName, initFunc, eDcr);
+        return this.collectionManager.entityCollection(initFunc, eDcr);
     }
-
     async createEntity(eDcr, fields, superSetAllowed = false, cutExtraFields = true) {
         fields = template_processor_1.processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
         const record = fields;
@@ -234,7 +216,6 @@ class SemanticPackage {
         let id = await col.append(record);
         return this.makeEntity(eDcr, id, record);
     }
-
     async loadEntity(entityId, eDcr, ...projection) {
         if (!entityId)
             throw new logged_exception_1.LoggedException('No entity id!');
@@ -242,9 +223,7 @@ class SemanticPackage {
         return e.populate(...projection);
     }
 }
-
 exports.SemanticPackage = SemanticPackage;
-
 function expandPredicate(predicateDcr) {
     if (!predicateDcr)
         return null;
@@ -252,4 +231,49 @@ function expandPredicate(predicateDcr) {
     return [...childrenNames, predicateDcr.name];
 }
 
+class CollectionManager {
+    constructor(semanticPackage, storage) {
+        this.semanticPackage = semanticPackage;
+        this.storage = storage;
+        this.collectionMutex = new mutex_1.Mutex();
+        this.collections = {};
+    }
+
+    entityCollection(initFunc, eDcr) {
+        const collectionName = this.semanticPackage.name + constants_1.ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
+        return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, this.semanticPackage), initFunc);
+    }
+
+    async predicateCollection(p) {
+        if (typeof p == 'string')
+            return this.collectionForName(p, true, c => this.storage.makePredicateCollection(this.semanticPackage, c));
+        // @ts-ignore
+        const pDcr = p && p.constructor.name === 'PredicateDcr' ? p : p.dcr;
+        const collectionName = pDcr.collectionName || (this.semanticPackage.name + constants_1.ID_SEPARATOR + '_Predicates');
+        return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c));
+    }
+
+    async collectionForName(name, forPredicate, wrapper, initFunc) {
+        return new Promise((resolve, reject) => {
+            this.collectionMutex.lock(() => {
+                let col = this.collections[name];
+                if (col) {
+                    this.collectionMutex.release();
+                    resolve(col);
+                } else {
+                    this.storage.getPhysicalCollection(name, forPredicate).then(physicalCollection => {
+                        const newCollection = wrapper(physicalCollection);
+                        this.collections[name] = newCollection;
+                        initFunc && initFunc(newCollection);
+                        this.collectionMutex.release();
+                        resolve(newCollection);
+                    }).catch((e) => {
+                        this.collectionMutex.release();
+                        reject(e);
+                    });
+                }
+            });
+        });
+    }
+}
 //# sourceMappingURL=semantic-package.js.map

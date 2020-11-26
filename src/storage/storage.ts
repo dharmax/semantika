@@ -1,9 +1,8 @@
 import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences, SessionOptions} from "mongodb"
 
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
-import {BasicCollection} from "./basic-collection";
+import {MongoBasicCollection} from "./mongo-basic-collection";
 import {EntityDcr} from "../descriptors";
-import {Mutex} from "../utils/mutex";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
 import {SemanticPackage} from "../semantic-package";
 
@@ -56,15 +55,18 @@ export interface ICollection {
     createId(): string;
 }
 
+export type IPhysicalCollection = any
+
+
 export abstract class AbstractStorage {
 
-    abstract async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection>
+    abstract makeEntityCollection(physicalCollection: IPhysicalCollection, eDcr: EntityDcr, initFunc: (col: EntityCollection) => void): EntityCollection
 
-    abstract async predicateCollection(semanticPackage: SemanticPackage, name?: string): Promise<PredicateCollection>
+    abstract makePredicateCollection(semanticPackage: SemanticPackage, physicalCollection: IPhysicalCollection): PredicateCollection
 
-    abstract basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection>
+    abstract makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: MongoBasicCollection) => void): MongoBasicCollection
 
-    abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<ICollection>;
+    abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<IPhysicalCollection>;
 
     abstract setQueryDictionary(dictionary: QueryDictionary): void;
 
@@ -72,28 +74,6 @@ export abstract class AbstractStorage {
 
     abstract purgeDatabase(): Promise<any>;
 
-    protected async collectionForName<T extends ICollection>(name: string, forPredicates = false, initFunc?: (col: ICollection) => void, clazz?: Function): Promise<T> {
-        return new Promise<T>((resolve, reject) => {
-            collectionMutex.lock(() => {
-                let col = collections[name]
-                if (col) {
-                    collectionMutex.release()
-                    resolve(col as T)
-                } else {
-                    this.getPhysicalCollection(name, forPredicates).then(c => {
-                        collections[name] = c
-                        initFunc && initFunc(c)
-                        collectionMutex.release()
-                        resolve(c as T);
-                    }).catch((e) => {
-                        collectionMutex.release()
-                        reject(e)
-                    })
-                }
-            })
-        })
-
-    }
 
 }
 
@@ -117,12 +97,6 @@ export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', 
 
 
 export enum StreamFormats { records, entities, strings}
-
-
-const collectionMutex = new Mutex();
-const collections: { [name: string]: ICollection } = {}
-
-
 
 const predicateInitFunction = col => {
     col.ensureIndex({
@@ -149,3 +123,4 @@ const predicateInitFunction = col => {
         predicateName: 1
     }, {})
 }
+

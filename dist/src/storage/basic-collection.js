@@ -6,7 +6,6 @@ const bluebird_1 = require("bluebird");
 const short_uuid_1 = require("short-uuid");
 const storage_1 = require("./storage");
 const array_to_projection_1 = require("../utils/array-to-projection");
-
 class BasicCollection {
     /**
      * Not to be accessed directly.
@@ -16,16 +15,13 @@ class BasicCollection {
     constructor(collection) {
         this.collection = collection;
     }
-
     get name() {
         return this.collection.collectionName;
     }
-
     watch(callback, ...args) {
         const self = this;
         // noinspection JSIgnoredPromiseFromCall
         watchIt();
-
         async function watchIt() {
             while (true) {
                 const changeStream = self.collection.watch(...args);
@@ -35,7 +31,6 @@ class BasicCollection {
             }
         }
     }
-
     async updateDocumentUnsafe(_id, fields) {
         const result = await this.collection.updateOne({
             _id,
@@ -46,7 +41,6 @@ class BasicCollection {
         if (success)
             return true;
     }
-
     async updateDocument(_id, fields, version, rawOperations = {}) {
         const result = await this.collection.updateOne({
             _id,
@@ -66,7 +60,6 @@ class BasicCollection {
         }
         return result.result;
     }
-
     async findById(_id, projection) {
         return this.findOne({_id}, projection);
     }
@@ -92,7 +85,6 @@ class BasicCollection {
     async distinct(field, query, options = {}) {
         return this.collection.distinct(field, query);
     }
-
     async findSome(query, options = {}) {
         // @ts-ignore
         const cursor = await this.find(...arguments);
@@ -102,7 +94,6 @@ class BasicCollection {
             result = await options.filterFunction(result);
         return result;
     }
-
     async findSomeStream(query, options, format = storage_1.StreamFormats.strings) {
         // @ts-ignore
         const cursor = await this.find(...arguments);
@@ -117,18 +108,15 @@ class BasicCollection {
                 throw new Error('Stream formant not supported');
         }
     }
-
     async count(query, opts) {
         return this.collection.countDocuments(query, opts);
     }
-
     async findOne(query, projection) {
         if (projection)
             projection.push('_id', '_version');
         let some = await this.findSome(query, {limit: 1, projection});
         return some.length ? some[0] : null;
     }
-
     async load(opt, query) {
         let r = await bluebird_1.props({
             items: (opt ? this.findSome(query, {
@@ -142,7 +130,6 @@ class BasicCollection {
         });
         return Object.assign(r, {opts: opt, total: -1});
     }
-
     /**
      * @param doc the record
      * @returns on success, the id of the new entry
@@ -159,30 +146,24 @@ class BasicCollection {
             throw e;
         }
     }
-
     async deleteById(_id) {
         let result = await this.collection.deleteOne({_id});
         return result.deletedCount === 1;
     }
-
     async deleteByQuery(query) {
         let result = await this.collection.deleteMany(query);
         return result.deletedCount;
     }
-
     ensureIndex(keys, options) {
         return this.collection.createIndex(keys, options);
     }
-
     async findOneAndModify(criteria, change) {
         return this.collection.findOneAndUpdate(criteria, {$set: change});
     }
-
     createId() {
         return short_uuid_1.generate();
     }
 }
-
 exports.BasicCollection = BasicCollection;
 const DEFAULT_BATCH_SIZE = 100;
 //# sourceMappingURL=basic-collection.js.map

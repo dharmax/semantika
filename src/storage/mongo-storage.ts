@@ -1,8 +1,8 @@
-import {MongoClient, SessionOptions} from "mongodb";
-import {AbstractStorage, QueryDictionary, StorageSession} from "./storage";
+import {Collection as MongoCollection, MongoClient, SessionOptions} from "mongodb";
+import {AbstractStorage, IPhysicalCollection, QueryDictionary, StorageSession} from "./storage";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
 import {EntityDcr} from "../descriptors";
-import {BasicCollection} from "./basic-collection";
+import {MongoBasicCollection} from "./mongo-basic-collection";
 import {SemanticPackage} from "../semantic-package";
 
 export class MongoStorage extends AbstractStorage {
@@ -39,18 +39,20 @@ export class MongoStorage extends AbstractStorage {
         return this.dbClient.db().collection(name)
     }
 
-    async entityCollection(collectionName: string, initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): Promise<EntityCollection> {
-        const c = await super.collectionForName(collectionName, false, initFunc, eDcr.clazz) as EntityCollection
-        return new EntityCollection(eDcr, c)
+    makeEntityCollection(physicalCollection: IPhysicalCollection, eDcr: EntityDcr, initFunc: (col: EntityCollection) => void): EntityCollection {
+        const c = new EntityCollection(eDcr, this.makeBasicCollection(physicalCollection))
+        initFunc && initFunc(c)
+        return c
     }
 
-    async predicateCollection(semanticPackage: SemanticPackage, name?: string): Promise<PredicateCollection> {
-        const c = await super.collectionForName(name, true)
-        return new PredicateCollection(semanticPackage, c)
+    makePredicateCollection(semanticPackage: SemanticPackage, physicalCollection: IPhysicalCollection): PredicateCollection {
+        return new PredicateCollection(semanticPackage, this.makeBasicCollection(physicalCollection))
     }
 
-    basicCollection(collectionName: string, initFunc?: (col: BasicCollection) => void): Promise<BasicCollection> {
-        return super.collectionForName(collectionName, false, initFunc)
+    makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: MongoBasicCollection) => void): MongoBasicCollection {
+        const c = new MongoBasicCollection(physicalCollection as MongoCollection)
+        initFunc && initFunc(c)
+        return c
     }
 
 }

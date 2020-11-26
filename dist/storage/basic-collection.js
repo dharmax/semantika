@@ -14,7 +14,7 @@ class BasicCollection {
      * @param collection
      */
     constructor(collection) {
-        this.collection = collection;
+        this.makeBasicCollection = collection;
     }
 
     get name() {

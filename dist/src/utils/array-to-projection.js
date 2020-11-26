@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", {value: true});
 exports.arrayToProjection = void 0;
-
 function arrayToProjection(projection, cursor) {
     projection = Array.from(new Set(projection));
     let p = projection.reduce((res, cur) => {
@@ -10,6 +9,5 @@ function arrayToProjection(projection, cursor) {
     }, {});
     cursor.project(p);
 }
-
 exports.arrayToProjection = arrayToProjection;
 //# sourceMappingURL=array-to-projection.js.map

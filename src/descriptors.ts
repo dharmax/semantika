@@ -6,11 +6,12 @@ import {EntityCollection} from "./storage/semantic-collections";
 export abstract class SemanticPartDescriptor {
     semanticPackage: SemanticPackage;
     _parents: SemanticPartDescriptor[] = []
+    collectionName: string;
+
 }
 
 export class EntityDcr extends SemanticPartDescriptor {
     initializer: (col: EntityCollection) => void;
-    collectionName: string;
 
     constructor(readonly clazz: typeof AbstractEntity, readonly template: EntityTemplate) {
         super();
