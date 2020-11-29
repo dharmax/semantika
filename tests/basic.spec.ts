@@ -1,6 +1,6 @@
 import * as joi from 'joi'
 import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
-import {MongoStorage} from '../src/storage/mongo-storage';
+import {MongoStorage} from '../src/storage/mongo-store/mongo-storage';
 import {EntityTemplate} from "../src/utils/template-processor";
 import {expect} from 'chai'
 

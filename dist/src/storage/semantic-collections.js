@@ -120,13 +120,11 @@ class EntityCollection extends ArtifactCollection {
     }
 }
 exports.EntityCollection = EntityCollection;
-
 class PredicateCollection extends ArtifactCollection {
     constructor(semanticPackage, collection) {
         super(collection);
         this.semanticPackage = semanticPackage;
     }
-
     createId() {
         return `${this.semanticPackage.name}${constants_1.ID_SEPARATOR}${this.basicCollection.createId()}`;
     }

@@ -3,7 +3,12 @@ import {LoggedException} from "./utils/logged-exception";
 import {IPredicateRecord, PredicateCollection} from "./storage/semantic-collections";
 import {SemanticPackage} from "./semantic-package";
 
-
+/**
+ * Represents a semantic relation between two semantic parts (entities). This class is not to be extended. The predicate's
+ * descriptor gives the predicate its semantic meaning. A predicate may have a payload of user-data. The term "peer" reference
+ * to a connected artifact. It is possible to define (using the descriptor) peer (target or source) fields that would be copied
+ * automatically to the predicate record, in order to support functionality like index supported filtering, etc.
+ */
 export class Predicate implements IPredicateRecord {
 
     private _version: number
@@ -16,7 +21,7 @@ export class Predicate implements IPredicateRecord {
     targetType: string
     payload: any
 
-
+    // those are fields that are reflections of peers (see descriptors)
     [peerKey: string]: any
 
     private sourceEntity: AbstractEntity

@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", {value: true});
 const joi = require("joi");
 const src_1 = require("../src");
-const mongo_storage_1 = require("../src/storage/mongo-storage");
+const mongo_storage_1 = require("../src/storage/mongo-store/mongo-storage");
 const chai_1 = require("chai");
 describe("Testing Semantix", function () {
     let sp;

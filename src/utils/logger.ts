@@ -1,3 +1,7 @@
+/**
+ * Use this to register your own logger
+ * @param _logger
+ */
 export function registerLogger(_logger: ILogger): void {
     logger = _logger
 }

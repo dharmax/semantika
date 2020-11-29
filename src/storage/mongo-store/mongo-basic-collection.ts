@@ -1,10 +1,10 @@
 import {ChangeStream, Collection as MongoCollection, Cursor, IndexOptions, MongoCountPreferences,} from "mongodb";
-import {LoggedException} from "../utils/logged-exception";
-import {IReadOptions, IReadResult} from "../types";
+import {LoggedException} from "../../utils/logged-exception";
+import {IReadOptions, IReadResult} from "../../types";
 import {props} from "bluebird";
 import {generate} from "short-uuid";
-import {DuplicateKeyError, IFindOptions, IPhysicalCollection, StreamFormats} from "./storage";
-import {arrayToProjection} from "../utils/array-to-projection";
+import {DuplicateKeyError, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage";
+import {arrayToProjection} from "../../utils/array-to-projection";
 
 export class MongoBasicCollection implements IPhysicalCollection {
 

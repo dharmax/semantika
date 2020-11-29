@@ -7,9 +7,19 @@
   "scripts": {
     "test": "jasmine-ts --config=jasmine.json"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "database",
+    "graph",
+    "rdf",
+    "owl",
+    "semantic",
+    "agnostic"
+  ],
+  "author": "avi tshuva, dharmax",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dharmax/semantix.git"
+  },
   "dependencies": {
     "bluebird": "^3.7.2",
     "joi": "^17.3.0",

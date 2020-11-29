@@ -1,7 +1,6 @@
 import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences, SessionOptions} from "mongodb"
 
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
-import {MongoBasicCollection} from "./mongo-basic-collection";
 import {EntityDcr} from "../descriptors";
 import {EntityCollection, PredicateCollection} from "./semantic-collections";
 import {SemanticPackage} from "../semantic-package";
@@ -64,7 +63,7 @@ export abstract class AbstractStorage {
 
     abstract makePredicateCollection(semanticPackage: SemanticPackage, physicalCollection: IPhysicalCollection): PredicateCollection
 
-    abstract makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: MongoBasicCollection) => void): MongoBasicCollection
+    abstract makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: IPhysicalCollection) => void): IPhysicalCollection
 
     abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<IPhysicalCollection>;
 
@@ -98,29 +97,4 @@ export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', 
 
 export enum StreamFormats { records, entities, strings}
 
-const predicateInitFunction = col => {
-    col.ensureIndex({
-        predicateName: 1,
-        sourceId: 1,
-        targetType: 1
-    }, {})
-    col.ensureIndex({
-        predicateName: 1,
-        targetId: 1,
-        sourceType: 1
-    }, {})
-    col.ensureIndex({
-        sourceId: 1,
-        keys: 1
-    }, {})
-    col.ensureIndex({
-        targetId: 1,
-        keys: 1
-    }, {})
-    col.ensureIndex({
-        sourceId: 1,
-        targetId: 1,
-        predicateName: 1
-    }, {})
-}
 

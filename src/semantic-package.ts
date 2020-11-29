@@ -2,7 +2,7 @@ import {IRawOntology} from "./raw-ontology";
 import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
-import {Predicate} from "./model-manager";
+import {Predicate} from "./predicate";
 import {
     ArtifactCollection,
     EntityCollection,
@@ -17,17 +17,31 @@ import {EntityDcr, PredicateDcr} from "./descriptors";
 import {AbstractStorage, IPhysicalCollection} from "./storage/storage";
 import {Mutex} from "./utils/mutex";
 
+/**
+ * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
+ * Semantic packages can extend other semantic packages and thus logically be a super-set of their contents. Often
+ * one semantic package is enough for an applicatin, but not always.
+ *
+ * @todo add an aggregation of inherited query results
+ */
 export class SemanticPackage {
 
     readonly ontology: Ontology
     private collectionManager: CollectionManager;
 
+    /**
+     * @param name name of semantic package
+     * @param ontology the ontology associated with the SP
+     * @param storage the storage for the semantic artifacts
+     * @param parents optional parent semantic packages, that this one will extend
+     */
     constructor(readonly name: string, ontology: IRawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
         this.ontology = new Ontology(this, ontology)
         this.collectionManager = new CollectionManager(this, storage)
     }
 
     /**
+     * Internal
      * Create an entity instance from a record and possibly from id only. If it is not an entity, it just returns the record unchanged.
      * @param eDcr
      * @param id the id, if there's no id in the record
@@ -54,6 +68,11 @@ export class SemanticPackage {
         return e
     }
 
+    /**
+     * internal
+     * @param id
+     * @param projection
+     */
     async loadEntityById<T>(id: string, ...projection: string[]): Promise<T> {
         const idSegments = id.split(ID_SEPARATOR);
         const entityTypeName = idSegments[idSegments.length - 2]
@@ -65,7 +84,6 @@ export class SemanticPackage {
     }
 
 
-// noinspection JSUnusedGlobalSymbols
     async predicateById(pid: string) {
         const pCol: PredicateCollection = await this.collectionManager.predicateCollection(pid)
         const record = <IPredicateRecord>await pCol.findById(pid, undefined)
@@ -271,6 +289,10 @@ export class SemanticPackage {
 
 }
 
+/**
+ * expand a given predicate dcr to the list dcr names that include the inherited predicates
+ * @param predicateDcr
+ */
 function expandPredicate(predicateDcr: PredicateDcr): string[] {
     if (!predicateDcr)
         return null
@@ -279,6 +301,9 @@ function expandPredicate(predicateDcr: PredicateDcr): string[] {
 }
 
 
+/**
+ * Create the collections lazily
+ */
 class CollectionManager {
     collectionMutex = new Mutex();
     collections: { [name: string]: ArtifactCollection } = {}
@@ -293,7 +318,11 @@ class CollectionManager {
 
     async predicateCollection(p?: Predicate | string | PredicateDcr): Promise<PredicateCollection> {
         if (typeof p == 'string')
-            return this.collectionForName(p, true, c => this.storage.makePredicateCollection(this.semanticPackage, c))
+            return this.collectionForName(p, true, c => {
+                const col = this.storage.makePredicateCollection(this.semanticPackage, c)
+                predicateInitFunction(col)
+                return col
+            })
         // @ts-ignore
         const pDcr: PredicateDcr = p && p.constructor.name === 'PredicateDcr' ? p : (p as Predicate).dcr
 
@@ -326,4 +355,28 @@ class CollectionManager {
 }
 
 
-
+const predicateInitFunction = col => {
+    col.ensureIndex({
+        predicateName: 1,
+        sourceId: 1,
+        targetType: 1
+    }, {})
+    col.ensureIndex({
+        predicateName: 1,
+        targetId: 1,
+        sourceType: 1
+    }, {})
+    col.ensureIndex({
+        sourceId: 1,
+        keys: 1
+    }, {})
+    col.ensureIndex({
+        targetId: 1,
+        keys: 1
+    }, {})
+    col.ensureIndex({
+        sourceId: 1,
+        targetId: 1,
+        predicateName: 1
+    }, {})
+}

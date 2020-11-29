@@ -24,29 +24,4 @@ var StreamFormats;
     StreamFormats[StreamFormats["entities"] = 1] = "entities";
     StreamFormats[StreamFormats["strings"] = 2] = "strings";
 })(StreamFormats = exports.StreamFormats || (exports.StreamFormats = {}));
-const predicateInitFunction = col => {
-    col.ensureIndex({
-        predicateName: 1,
-        sourceId: 1,
-        targetType: 1
-    }, {});
-    col.ensureIndex({
-        predicateName: 1,
-        targetId: 1,
-        sourceType: 1
-    }, {});
-    col.ensureIndex({
-        sourceId: 1,
-        keys: 1
-    }, {});
-    col.ensureIndex({
-        targetId: 1,
-        keys: 1
-    }, {});
-    col.ensureIndex({
-        sourceId: 1,
-        targetId: 1,
-        predicateName: 1
-    }, {});
-};
 //# sourceMappingURL=storage.js.map

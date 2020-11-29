@@ -1,69 +1,67 @@
-import {all, map} from 'bluebird'
+import {all} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem, ProjectionPredicateItem} from "./projection";
 import {StandardFields} from "./storage/storage";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
-import {Predicate} from "./model-manager";
 import {EntityDcr, PredicateDcr} from "./descriptors";
 import {logger} from "./utils/logger";
 import {LoggedException} from './utils/logged-exception';
+import {Predicate} from "./predicate";
 
 export abstract class AbstractEntity {
 
     private _version: number
     private _parent: AbstractEntity | string | undefined;
 
-    /**
-     *
-     * Optional non default name for the entities associated collection
-     */
-    // static readonly collectionName = 'PodCollection'
-
-
     constructor(readonly semanticPackage: SemanticPackage, readonly id) {
     }
 
 
+    /**
+     * compare entities
+     * @param entity
+     */
     // noinspection JSUnusedGlobalSymbols
     equals(entity: AbstractEntity): boolean {
         return this === entity || this.id === entity.id || this.id.toString() == entity.id.toString()
     }
 
-    abstract getContainers(): Promise<AbstractEntity[]>
-
+    /**
+     * @return entity's type name
+     */
     typeName() {
         return this.constructor.name
     }
 
+    /**
+     * @return entity's descriptor
+     */
     get descriptor(): EntityDcr {
         return this.semanticPackage.ontology.edcr(this.typeName())
     }
 
+    /**
+     * version (for the optimistic locking mechanism). Used internally.
+     */
     get version() {
         return this._version
     }
 
+    /***
+     * @return the template. Normally you'd never have to call that yourself.
+     */
     get template() {
-        const t = this.constructor['getTemplate']
+        const t = this.constructor['getTemplate'] || this.descriptor.template
         return t && t() || null
     }
 
+    /**
+     * @return the associated collection for those entity types
+     *
+     */
     async getAssociatedCollection() {
         return this.semanticPackage.collectionForEntityType(this.descriptor)
-    }
-
-    async getPermissionOwners(): Promise<{ role, userId, userInfo }[]> {
-        return map(this.semanticPackage.findPredicates(true, 'has-role-in', this.id, {
-            peerType: 'User',
-            projection: ['name', 'pictureUrl', 'city']
-        }), async p => {
-            return {
-                role: p.payload,
-                userId: p.sourceId,
-                userInfo: await p.getSource('name', 'email')
-            }
-        })
     }
 
     /**
@@ -116,19 +114,28 @@ export abstract class AbstractEntity {
         }, {})
     }
 
+    /**
+     * Re-read this entity from the database
+     */
     async refresh<T extends AbstractEntity>() {
-
-        // @ts-ignore
-        const e = await this.constructor.createFromDB(this.constructor, this.id, ...Object.keys(this))
+        const e = await this.semanticPackage.loadEntity(this.id, this.descriptor, ...Object.keys(this))
         Object.assign(this, e)
         return this
     }
 
-
+    /**
+     * populate all the fields defined in the template
+     */
     populateAll<T extends AbstractEntity>(): Promise<T> {
         return this.populate(...Object.keys(this.template))
     }
 
+    /**
+     * This method is sometimes so it would return data that the application logic considers as a "full object", which
+     * may mean, it also gathers data from related entities and predicates, etc, etc.
+     * @return a DTO with all the entities data, including the basic meta data, by default.
+     * @param options optional options :)
+     */
     async fullDto<T>(options?: unknown): Promise<T> {
         const data = await this.getFields(...Object.keys(this.template), '_created', '_lastUpdate')
         data.id = this.id
@@ -136,9 +143,14 @@ export abstract class AbstractEntity {
         return data as T;
     }
 
+
+    /**
+     * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,
+     * but are in connected predicates, which the projection refer to them).
+     * @param projection field names
+     */
     async populate<E extends AbstractEntity>(...projection: ProjectionItem[]): Promise<E> {
         const col = await this.getAssociatedCollection()
-        const self = this
         const predicateProjections = projection && projection.filter(p => typeof p === 'object') as ProjectionPredicateItem[]
         let fieldsProjection = projection && projection.filter(p => typeof p === 'string') as string[]
 
@@ -178,24 +190,24 @@ export abstract class AbstractEntity {
         }
     }
 
-    // /**
-    //  * This method is part of the notification logic. The notification service uses it to see to whom to notify about
-    //  * something.
-    //  * @return the id-s of users which are interesting in events that happens to this specific entity
-    //  * @param eventType the event type
-    //  */
-    // async getInterestedParties(eventType: string): Promise<User[]> {
-    //
-    //     // this is the default logic: it returns all the permission holders on the entities, per any eventType
-    //
-    //     let userIds = (await this.getPermissionOwners()).map(po => po.userId)
-    //
-    //     let containers = await this.getContainers()
-    //     containers && containers.forEach(async c => userIds.push(...(await c.getInterestedParties(eventType))))
-    //
-    //     return Promise.all(userIds.map(uid => <Promise<User>>this.semanticPackage.loadEntity('User', uid)))
-    // }
-    //
+    /**
+     * Convenient method for shorter reference to query methods
+     */
+    get p() {
+        const self = this
+        return {
+            i: self.incomingPreds,
+            ip: self.incomingPredsPaging,
+            o: self.outgoingPreds,
+            op: self.outgoingPredsPaging
+        }
+    }
+
+    /**
+     *
+     * @param predicate the predicate name or dcr
+     * @param opts query
+     */
     async outgoingPreds(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
         return this.semanticPackage.findPredicates(false, predicate, this.id, opts)
     }
@@ -264,7 +276,7 @@ export abstract class AbstractEntity {
         return await this.update({_parent: parent.id})
     }
 
-    async query(_iDepth, _oDepth) {
+    async drill(_iDepth, _oDepth) {
 
         await this.fullDto()
         return populateConnections(this, _iDepth, _oDepth)

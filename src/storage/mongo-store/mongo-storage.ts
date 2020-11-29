@@ -1,9 +1,9 @@
 import {Collection as MongoCollection, MongoClient, SessionOptions} from "mongodb";
-import {AbstractStorage, IPhysicalCollection, QueryDictionary, StorageSession} from "./storage";
-import {EntityCollection, PredicateCollection} from "./semantic-collections";
-import {EntityDcr} from "../descriptors";
+import {AbstractStorage, IPhysicalCollection, QueryDictionary, StorageSession} from "../storage";
+import {EntityCollection, PredicateCollection} from "../semantic-collections";
+import {EntityDcr} from "../../descriptors";
 import {MongoBasicCollection} from "./mongo-basic-collection";
-import {SemanticPackage} from "../semantic-package";
+import {SemanticPackage} from "../../semantic-package";
 
 export class MongoStorage extends AbstractStorage {
 

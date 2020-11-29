@@ -2,8 +2,9 @@
  * You can use this class to assigned complex named queries. The query result is typically passed to the collection
  * load method.
  */
-import {MongoBasicCollection} from "./storage/mongo-basic-collection";
 import {IReadOptions} from "./types";
+import {ICollection} from "./storage/storage";
+
 
 export class QueryExtender {
 
@@ -16,7 +17,7 @@ export class QueryExtender {
      * @param theOptions options
      * @return the query
      */
-    getQueryFromReadOptions(collection: MongoBasicCollection, theOptions: IReadOptions) {
+    getQueryFromReadOptions(collection: ICollection, theOptions: IReadOptions) {
         if (!theOptions.queryName)
             return {}
         const queryConstructor = this.queryDictionary[theOptions.queryName]

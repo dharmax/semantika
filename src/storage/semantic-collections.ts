@@ -1,6 +1,5 @@
 import {AbstractEntity} from "../abstract-entity";
-import {Cursor, ICollection, IFindOptions, StreamFormats} from "./storage";
-import {MongoBasicCollection} from "./mongo-basic-collection";
+import {Cursor, ICollection, IFindOptions, IPhysicalCollection, StreamFormats} from "./storage";
 import {SemanticPackage} from "../semantic-package";
 import {ID_SEPARATOR} from "../utils/constants";
 import {EntityDcr} from "../descriptors";
@@ -8,7 +7,7 @@ import {IReadOptions, IReadResult} from "../types";
 
 
 export abstract class ArtifactCollection implements ICollection {
-    protected constructor(protected basicCollection: MongoBasicCollection) {
+    protected constructor(protected basicCollection: IPhysicalCollection) {
     }
 
     readonly name: string;
@@ -98,7 +97,7 @@ export abstract class ArtifactCollection implements ICollection {
 
 export class EntityCollection extends ArtifactCollection {
 
-    constructor(private entityDcr: EntityDcr, collection: MongoBasicCollection) {
+    constructor(private entityDcr: EntityDcr, collection: IPhysicalCollection) {
         super(collection)
     }
 
@@ -161,7 +160,7 @@ export class EntityCollection extends ArtifactCollection {
 
 export class PredicateCollection extends ArtifactCollection {
 
-    constructor(readonly semanticPackage: SemanticPackage, collection: MongoBasicCollection) {
+    constructor(readonly semanticPackage: SemanticPackage, collection: IPhysicalCollection) {
         super(collection)
     }
 

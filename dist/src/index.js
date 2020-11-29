@@ -19,9 +19,9 @@ __exportStar(require("./ontology"), exports);
 __exportStar(require("./projection"), exports);
 __exportStar(require("./descriptors"), exports);
 __exportStar(require("./raw-ontology"), exports);
-__exportStar(require("./model-manager"), exports);
+__exportStar(require("./predicate"), exports);
 __exportStar(require("./abstract-entity"), exports);
 __exportStar(require("./semantic-package"), exports);
 __exportStar(require("./storage/semantic-collections"), exports);
-__exportStar(require("./storage/mongo-basic-collection"), exports);
+__exportStar(require("./storage/mongo-store/mongo-basic-collection"), exports);
 //# sourceMappingURL=index.js.map
