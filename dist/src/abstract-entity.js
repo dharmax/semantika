@@ -6,13 +6,11 @@ const template_processor_1 = require("./utils/template-processor");
 const storage_1 = require("./storage/storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
-
 class AbstractEntity {
     constructor(semanticPackage, id) {
         this.semanticPackage = semanticPackage;
         this.id = id;
     }
-
     /**
      * compare entities
      * @param entity
@@ -21,28 +19,24 @@ class AbstractEntity {
     equals(entity) {
         return this === entity || this.id === entity.id || this.id.toString() == entity.id.toString();
     }
-
     /**
      * @return entity's type name
      */
     typeName() {
         return this.constructor.name;
     }
-
     /**
      * @return entity's descriptor
      */
     get descriptor() {
         return this.semanticPackage.ontology.edcr(this.typeName());
     }
-
     /**
      * version (for the optimistic locking mechanism). Used internally.
      */
     get version() {
         return this._version;
     }
-
     /***
      * @return the template. Normally you'd never have to call that yourself.
      */
@@ -50,7 +44,6 @@ class AbstractEntity {
         const t = this.constructor['getTemplate'] || this.descriptor.template;
         return t && t() || null;
     }
-
     /**
      * @return the associated collection for those entity types
      *
@@ -64,6 +57,7 @@ class AbstractEntity {
      * @param fieldsToUpdate the object with the field to change and their new values
      * @param superSetAllowed set to true if you allow inclusion of fields that aren't in the Entity's template
      * @param cutExtraFields in case superSetAllowed is false, it tells the method whether to fail in case of extra fields or to just warn.
+     * @param rawOperations a "backdoor" for special, db-dependant update operations
      * @return the updated entity (this) or null on failure
      */
     async update(fieldsToUpdate, superSetAllowed = false, cutExtraFields = false, rawOperations = {}) {
@@ -106,7 +100,6 @@ class AbstractEntity {
             return a;
         }, {});
     }
-
     /**
      * Re-read this entity from the database
      */
@@ -115,14 +108,12 @@ class AbstractEntity {
         Object.assign(this, e);
         return this;
     }
-
     /**
      * populate all the fields defined in the template
      */
     populateAll() {
         return this.populate(...Object.keys(this.template));
     }
-
     /**
      * This method is sometimes so it would return data that the application logic considers as a "full object", which
      * may mean, it also gathers data from related entities and predicates, etc, etc.
@@ -135,7 +126,6 @@ class AbstractEntity {
         data._entityType = this.typeName();
         return data;
     }
-
     /**
      * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,
      * but are in connected predicates, which the projection refer to them).
@@ -155,10 +145,9 @@ class AbstractEntity {
     }
     async populateRelated(predicateSpecs) {
         for (let ps of predicateSpecs) {
-            const preds = ps.in ?
+            this[ps.pName] = ps.in ?
                 await this.incomingPreds(ps.pName, {projection: ps.projection})
                 : await this.outgoingPreds(ps.pName, {projection: ps.projection});
-            this[ps.pName] = preds;
         }
         return this;
     }
@@ -177,7 +166,6 @@ class AbstractEntity {
             entityId: this.id,
         };
     }
-
     /**
      * Convenient method for shorter reference to query methods
      */
@@ -190,7 +178,6 @@ class AbstractEntity {
             op: self.outgoingPredsPaging
         };
     }
-
     /**
      * return the outgoing connections of the given type. Could also include the peer, if that's asked for. Predicate
      * hierarchy is taken into account.
@@ -200,7 +187,6 @@ class AbstractEntity {
     async outgoingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(false, predicate, this.id, opts);
     }
-
     /**
      * return the incoming  connections of the given type. Could also include the peer, if that's asked for.
      * Predicate hierarchy is taken into account.
@@ -210,7 +196,6 @@ class AbstractEntity {
     async incomingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(true, predicate, this.id, opts);
     }
-
     /**
      * Like outgoingPreds but with pagination
      * @param predicate
@@ -220,7 +205,6 @@ class AbstractEntity {
     async outgoingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(false, predicate, this.id, opts, pagination);
     }
-
     /**
      * Like incomingPreds but with pagination
      * @param predicate
@@ -230,7 +214,6 @@ class AbstractEntity {
     async incomingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(true, predicate, this.id, opts, pagination);
     }
-
     /**
      * @return the parent entity if there is one
      */
@@ -240,7 +223,6 @@ class AbstractEntity {
         }
         return this._parent;
     }
-
     /**
      * This is a sophisticated value inheritance support. If the value is an object, it allow inner-field-level value inheritance
      * @param fieldName
@@ -259,7 +241,6 @@ class AbstractEntity {
             return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined;
         }
     }
-
     async getAllAncestors() {
         const parent = await this.getParent();
         if (!parent)
@@ -267,7 +248,6 @@ class AbstractEntity {
         // @ts-ignore
         return [parent, ...(await this.parent.getAllAncestors())];
     }
-
     /**
      * Set a parent entity to this entity
      * @param parent
@@ -281,7 +261,6 @@ class AbstractEntity {
         });
         return await this.update({_parent: parent.id});
     }
-
     /**
      * Normally used for database front end etc.
      * @param _iDepth
@@ -290,7 +269,6 @@ class AbstractEntity {
     async drill(_iDepth, _oDepth) {
         await this.fullDto();
         return populateConnections(this, _iDepth, _oDepth);
-
         async function populateConnections(entity, iDepth, oDepth) {
             if (iDepth) {
                 const predicates = await entity.incomingPreds(undefined, {peerType: '*'});
