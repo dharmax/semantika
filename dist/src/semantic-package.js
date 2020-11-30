@@ -140,7 +140,7 @@ class SemanticPackage {
      * @param {string|PredicateDcr} predicate the name of the predicate
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
-     * @returns {Promise<Object[]}
+     * @return all the predicates adhering to the query, populated according to the provided options
      */
     async findPredicates(incoming, predicate, entityId, opts = {}) {
         // noinspection ES6MissingAwait
@@ -153,7 +153,7 @@ class SemanticPackage {
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
      * @param {IReadOptions} pagination parameters. Null will return an array instead of IReadResult
-     * @returns {Promise<Object[] | IReadResult>}
+     * @return all the predicates adhering to the query, populated according to the provided options and the pagination setting
      */
     async pagePredicates(incoming, predicate, entityId, opts = {}, pagination) {
         // noinspection ES6MissingAwait
@@ -225,10 +225,22 @@ class SemanticPackage {
         predicateName && (query.predicateName = predicateName);
         return (await predicates.findSome(query)).map((rec) => new predicate_1.Predicate(this, rec));
     }
+    /**
+     * Return the collection for the entity type
+     * @param eDcr denotes the entity type
+     * @param initFunc if it's a new collection, you can give it an init function (e.g. for index creation)
+     */
     async collectionForEntityType(eDcr, initFunc) {
         initFunc = initFunc || eDcr.initializer;
         return this.collectionManager.entityCollection(initFunc, eDcr);
     }
+    /**
+     * Creates a new entity.
+     * @param eDcr the descriptor of the entity to be created
+     * @param fields data
+     * @param superSetAllowed set to true allow fields that don't appear in the template
+     * @param cutExtraFields set to true to silently remove fields that don't appear in the template or throw an error
+     */
     async createEntity(eDcr, fields, superSetAllowed = false, cutExtraFields = true) {
         fields = template_processor_1.processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
         const record = fields;

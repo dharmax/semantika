@@ -169,7 +169,7 @@ export class SemanticPackage {
      * @param {string|PredicateDcr} predicate the name of the predicate
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
-     * @returns {Promise<Object[]}
+     * @return all the predicates adhering to the query, populated according to the provided options
      */
     async findPredicates(incoming: boolean, predicate: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
         // noinspection ES6MissingAwait
@@ -184,7 +184,7 @@ export class SemanticPackage {
      * @param {string} entityId the entity id - it would be the source for outgoing predicates and the target for incoming
      * @param {IFindPredicatesOptions} opts
      * @param {IReadOptions} pagination parameters. Null will return an array instead of IReadResult
-     * @returns {Promise<Object[] | IReadResult>}
+     * @return all the predicates adhering to the query, populated according to the provided options and the pagination setting
      */
     async pagePredicates(incoming: boolean, predicate: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
         // noinspection ES6MissingAwait
@@ -192,7 +192,7 @@ export class SemanticPackage {
     }
 
 
-    async loadPredicates(incoming: boolean, pred: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<Predicate[] | IReadResult | AbstractEntity[]> {
+    private async loadPredicates(incoming: boolean, pred: string | PredicateDcr, entityId: string, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<Predicate[] | IReadResult | AbstractEntity[]> {
 
         const self = this
 
@@ -265,13 +265,23 @@ export class SemanticPackage {
         return (await predicates.findSome(query)).map((rec: IPredicateRecord) => new Predicate(this, rec))
     }
 
-
+    /**
+     * Return the collection for the entity type
+     * @param eDcr denotes the entity type
+     * @param initFunc if it's a new collection, you can give it an init function (e.g. for index creation)
+     */
     async collectionForEntityType(eDcr: EntityDcr, initFunc?: (col: EntityCollection) => void): Promise<EntityCollection> {
         initFunc = initFunc || eDcr.initializer
         return this.collectionManager.entityCollection(initFunc, eDcr)
     }
 
-
+    /**
+     * Creates a new entity.
+     * @param eDcr the descriptor of the entity to be created
+     * @param fields data
+     * @param superSetAllowed set to true allow fields that don't appear in the template
+     * @param cutExtraFields set to true to silently remove fields that don't appear in the template or throw an error
+     */
     async createEntity<T extends AbstractEntity>(eDcr: EntityDcr, fields: Object, superSetAllowed = false, cutExtraFields = true): Promise<T> {
         fields = processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name)
         const record = fields

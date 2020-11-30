@@ -17,9 +17,6 @@ describe("Testing Semantix", function () {
         }, storage)
 
     })
-    beforeEach(() => {
-
-    })
 
     it("should be able to create a Semantic Package and a collection ", async () => {
 
