@@ -6,48 +6,59 @@ const template_processor_1 = require("./utils/template-processor");
 const storage_1 = require("./storage/storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
+
 class AbstractEntity {
-    /**
-     *
-     * Optional non default name for the entities associated collection
-     */
-    // static readonly collectionName = 'PodCollection'
     constructor(semanticPackage, id) {
         this.semanticPackage = semanticPackage;
         this.id = id;
     }
+
+    /**
+     * compare entities
+     * @param entity
+     */
     // noinspection JSUnusedGlobalSymbols
     equals(entity) {
         return this === entity || this.id === entity.id || this.id.toString() == entity.id.toString();
     }
+
+    /**
+     * @return entity's type name
+     */
     typeName() {
         return this.constructor.name;
     }
+
+    /**
+     * @return entity's descriptor
+     */
     get descriptor() {
         return this.semanticPackage.ontology.edcr(this.typeName());
     }
+
+    /**
+     * version (for the optimistic locking mechanism). Used internally.
+     */
     get version() {
         return this._version;
     }
+
+    /***
+     * @return the template. Normally you'd never have to call that yourself.
+     */
     get template() {
-        const t = this.constructor['getTemplate'];
+        const t = this.constructor['getTemplate'] || this.descriptor.template;
         return t && t() || null;
     }
+
+    /**
+     * @return the associated collection for those entity types
+     *
+     */
     async getAssociatedCollection() {
         return this.semanticPackage.collectionForEntityType(this.descriptor);
     }
-    async getPermissionOwners() {
-        return bluebird_1.map(this.semanticPackage.findPredicates(true, 'has-role-in', this.id, {
-            peerType: 'User',
-            projection: ['name', 'pictureUrl', 'city']
-        }), async (p) => {
-            return {
-                role: p.payload,
-                userId: p.sourceId,
-                userInfo: await p.getSource('name', 'email')
-            };
-        });
-    }
+
     /**
      * Updates the specific fields-values of this entity in the memory and the database. Uses optimistic locking.
      * @param fieldsToUpdate the object with the field to change and their new values
@@ -95,24 +106,43 @@ class AbstractEntity {
             return a;
         }, {});
     }
+
+    /**
+     * Re-read this entity from the database
+     */
     async refresh() {
-        // @ts-ignore
-        const e = await this.constructor.createFromDB(this.constructor, this.id, ...Object.keys(this));
+        const e = await this.semanticPackage.loadEntity(this.id, this.descriptor, ...Object.keys(this));
         Object.assign(this, e);
         return this;
     }
+
+    /**
+     * populate all the fields defined in the template
+     */
     populateAll() {
         return this.populate(...Object.keys(this.template));
     }
+
+    /**
+     * This method is sometimes so it would return data that the application logic considers as a "full object", which
+     * may mean, it also gathers data from related entities and predicates, etc, etc.
+     * @return a DTO with all the entities data, including the basic meta data, by default.
+     * @param options optional options :)
+     */
     async fullDto(options) {
         const data = await this.getFields(...Object.keys(this.template), '_created', '_lastUpdate');
         data.id = this.id;
         data._entityType = this.typeName();
         return data;
     }
+
+    /**
+     * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,
+     * but are in connected predicates, which the projection refer to them).
+     * @param projection field names
+     */
     async populate(...projection) {
         const col = await this.getAssociatedCollection();
-        const self = this;
         const predicateProjections = projection && projection.filter(p => typeof p === 'object');
         let fieldsProjection = projection && projection.filter(p => typeof p === 'string');
         const fields = await col.findById(this.id, fieldsProjection && fieldsProjection.length && fieldsProjection || undefined);
@@ -147,42 +177,70 @@ class AbstractEntity {
             entityId: this.id,
         };
     }
-    // /**
-    //  * This method is part of the notification logic. The notification service uses it to see to whom to notify about
-    //  * something.
-    //  * @return the id-s of users which are interesting in events that happens to this specific entity
-    //  * @param eventType the event type
-    //  */
-    // async getInterestedParties(eventType: string): Promise<User[]> {
-    //
-    //     // this is the default logic: it returns all the permission holders on the entities, per any eventType
-    //
-    //     let userIds = (await this.getPermissionOwners()).map(po => po.userId)
-    //
-    //     let containers = await this.getContainers()
-    //     containers && containers.forEach(async c => userIds.push(...(await c.getInterestedParties(eventType))))
-    //
-    //     return Promise.all(userIds.map(uid => <Promise<User>>this.semanticPackage.loadEntity('User', uid)))
-    // }
-    //
+
+    /**
+     * Convenient method for shorter reference to query methods
+     */
+    get p() {
+        const self = this;
+        return {
+            i: self.incomingPreds,
+            ip: self.incomingPredsPaging,
+            o: self.outgoingPreds,
+            op: self.outgoingPredsPaging
+        };
+    }
+
+    /**
+     * return the outgoing connections of the given type. Could also include the peer, if that's asked for. Predicate
+     * hierarchy is taken into account.
+     * @param predicate the predicate name or dcr
+     * @param opts query options, including enrichment information
+     */
     async outgoingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(false, predicate, this.id, opts);
     }
+
+    /**
+     * return the incoming  connections of the given type. Could also include the peer, if that's asked for.
+     * Predicate hierarchy is taken into account.
+     * @param predicate the predicate name or dcr
+     * @param opts query options, including enrichment information
+     */
     async incomingPreds(predicate, opts = {}) {
         return this.semanticPackage.findPredicates(true, predicate, this.id, opts);
     }
+
+    /**
+     * Like outgoingPreds but with pagination
+     * @param predicate
+     * @param opts
+     * @param pagination pagination parameters
+     */
     async outgoingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(false, predicate, this.id, opts, pagination);
     }
+
+    /**
+     * Like incomingPreds but with pagination
+     * @param predicate
+     * @param opts
+     * @param pagination pagination parameters
+     */
     async incomingPredsPaging(predicate, opts = {}, pagination) {
         return this.semanticPackage.pagePredicates(true, predicate, this.id, opts, pagination);
     }
+
+    /**
+     * @return the parent entity if there is one
+     */
     async getParent() {
         if (typeof this._parent == 'string') {
             this._parent = await this.semanticPackage.loadEntity(this._parent);
         }
         return this._parent;
     }
+
     /**
      * This is a sophisticated value inheritance support. If the value is an object, it allow inner-field-level value inheritance
      * @param fieldName
@@ -201,6 +259,7 @@ class AbstractEntity {
             return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined;
         }
     }
+
     async getAllAncestors() {
         const parent = await this.getParent();
         if (!parent)
@@ -208,6 +267,11 @@ class AbstractEntity {
         // @ts-ignore
         return [parent, ...(await this.parent.getAllAncestors())];
     }
+
+    /**
+     * Set a parent entity to this entity
+     * @param parent
+     */
     async setParent(parent) {
         // prevent circularity
         const parentAncestors = await parent.getAllAncestors();
@@ -217,9 +281,16 @@ class AbstractEntity {
         });
         return await this.update({_parent: parent.id});
     }
-    async query(_iDepth, _oDepth) {
+
+    /**
+     * Normally used for database front end etc.
+     * @param _iDepth
+     * @param _oDepth
+     */
+    async drill(_iDepth, _oDepth) {
         await this.fullDto();
         return populateConnections(this, _iDepth, _oDepth);
+
         async function populateConnections(entity, iDepth, oDepth) {
             if (iDepth) {
                 const predicates = await entity.incomingPreds(undefined, {peerType: '*'});

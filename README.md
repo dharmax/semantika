@@ -12,7 +12,14 @@ aspect. I implemented such a database layer several times, in different language
 and later on, a simple Javascript implementation, that expanded into a richer one which served be in a few
 projects and supported also quite a few useful, advanced features. This is the evolution of the later,
 stripped of any of the extra features and focused on the essence. The extra features would soon come
-in separated libraries (on is already released: *am-i-allowed*) that are agnostic of even towards Semantix.        
+in separated libraries (on is already released: *am-i-allowed*) that are agnostic of even towards Semantix.
+
+### Advantage vs. existing solutions
+This layer is very agnostic, unlike anything else i've seen yet, and it evolved from several real-world
+projects and yet it is brand new, without any tech debt, using the most modern language features.
+It is built to be expanded, as i described above and it has some small unique features, but nothing, yet,
+dramatic. i will make sure it continues to evolve elegantly, because that's what i like, and i'll listen
+to your feedbacks.  
 
 ## General
 It lets you connect entities with named predicates, for example:
@@ -31,15 +38,17 @@ It lets you connect entities with named predicates, for example:
  
  ## Status
  This library was already used in several projects, and it is in the process of revising as a standalone npm package.      
- 
+  
  ## Features
  1. Multi-model: Semantic Graph (entity and predicates model,AKA nodes and *semantic* edges and document/table model co-exist
  simultaneously with the goodies of both. 
  1. It connects with your classes and business logic extremely easily. 
- 1. Database agnostic; provided with a MongoDB adapter and adding an adapter is trivial.  
+ 1. Database agnostic; provided with a MongoDB adapter and adding an adapter is trivial. You
+ can even implement and use a mixture of a specialized tuple storage for the predicates with
+ another storage for the entities.   
  1. Powerful entity field templates with joi validation.
  1. Pagination support in traversal
- 1. All the normal per-collection/table methods are still avai
+ 1. All the normal per-collection/table/methods are still available
  
  ## Terminology 
  * **Entity** a node in the graph that may contain data in the form of fields and may connect to other
@@ -54,6 +63,67 @@ It lets you connect entities with named predicates, for example:
  npm i semantix
  ## Preparations
  Basically. you need to:
- 1. Have a *store* implementation, or use to provided `MongoStore` and connect to it
+ 1. Have a *store* implementation, or use to provided `MongoStore` and connect to it.
  1. Define your ontology
+     1. Create your model's entity classes by extending `AbstractEntity`,  with their *entity descriptors*.
+     1. Create the *predicate descriptors*
+ 1. Instantiate a `SemanticPackage` and supply it with the *store* and the *ontology*
+ 1. You're ready to go: create entities, connect them, and so on
+ 
+ ## Usage flow
+ 1. Your `SemanticPackage` instance is your main interface for most entity and predicate CRUD operations.
+ 1. Holding an entity, you can change, delete, and navigate through its predicates.
+ 1. That's it, basically
+
+## Basic example
+ 
+ ```ts
+
+let sp: SemanticPackage
+const storage = new MongoStorage('mongodb://localhost/testing-semantix');
+await storage.connect()
+await storage.purgeDatabase()
+sp = new SemanticPackage('main', {
+    entityDcrs: [Person.dcr, WorkPlace.dcr],
+    predicateDcrs: [worksFor]
+}, storage)
+
+const george = <Person>await sp.createEntity(Person.dcr, {name: 'George'})
+const hooli = <WorkPlace>await sp.createEntity(WorkPlace.dcr, {name: 'Hooli'})
+
+const job = await sp.createPredicate(george, worksFor, hooli, {position: 'CTO'})
+
+const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']})
+
+// this `expect` is from the chai library
+expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
+
+
+
+class Person extends AbstractEntity {
+
+    static template: EntityTemplate = {
+        name: joi.string().required()
+    };
+    static readonly dcr = new EntityDcr(Person, Person.template)
+
+}
+
+class WorkPlace extends AbstractEntity {
+
+    static template: EntityTemplate = {
+        name: joi.string().required()
+    };
+    static readonly dcr = new EntityDcr(WorkPlace, WorkPlace.template)
+
+}
+
+const worksFor = new PredicateDcr('worksFor', [], {}, {
+    position: joi.string(),
+    start: joi.date(),
+    end: joi.date(),
+})
+
+```
+ 
  

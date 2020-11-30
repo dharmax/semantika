@@ -10,11 +10,9 @@ describe("Testing Semantix", function () {
         const storage = new mongo_storage_1.MongoStorage('mongodb://localhost/testing-semantix');
         await storage.connect();
         await storage.purgeDatabase();
-        const entityDcrs = [Person.dcr, WorkPlace.dcr];
-        const predicateDcrs = [worksFor];
         sp = new src_1.SemanticPackage('main', {
-            entityDcrs,
-            predicateDcrs
+            entityDcrs: [Person.dcr, WorkPlace.dcr],
+            predicateDcrs: [worksFor]
         }, storage);
     });
     beforeEach(() => {
@@ -28,18 +26,12 @@ describe("Testing Semantix", function () {
     });
 });
 class Person extends src_1.AbstractEntity {
-    getContainers() {
-        return Promise.resolve([]);
-    }
 }
 Person.template = {
     name: joi.string().required()
 };
 Person.dcr = new src_1.EntityDcr(Person, Person.template);
 class WorkPlace extends src_1.AbstractEntity {
-    getContainers() {
-        return Promise.resolve([]);
-    }
 }
 WorkPlace.template = {
     name: joi.string().required()

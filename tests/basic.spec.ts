@@ -11,11 +11,9 @@ describe("Testing Semantix", function () {
         const storage = new MongoStorage('mongodb://localhost/testing-semantix');
         await storage.connect()
         await storage.purgeDatabase()
-        const entityDcrs = [Person.dcr, WorkPlace.dcr];
-        const predicateDcrs = [worksFor]
         sp = new SemanticPackage('main', {
-            entityDcrs,
-            predicateDcrs
+            entityDcrs: [Person.dcr, WorkPlace.dcr],
+            predicateDcrs: [worksFor]
         }, storage)
 
     })
@@ -45,11 +43,6 @@ class Person extends AbstractEntity {
         name: joi.string().required()
     };
     static readonly dcr = new EntityDcr(Person, Person.template)
-
-    getContainers(): Promise<AbstractEntity[]> {
-        return Promise.resolve([]);
-    }
-
 }
 
 class WorkPlace extends AbstractEntity {
@@ -58,11 +51,6 @@ class WorkPlace extends AbstractEntity {
         name: joi.string().required()
     };
     static readonly dcr = new EntityDcr(WorkPlace, WorkPlace.template)
-
-    getContainers(): Promise<AbstractEntity[]> {
-        return Promise.resolve([]);
-    }
-
 }
 
 const worksFor = new PredicateDcr('worksFor', [], {}, {

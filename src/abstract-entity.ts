@@ -69,6 +69,7 @@ export abstract class AbstractEntity {
      * @param fieldsToUpdate the object with the field to change and their new values
      * @param superSetAllowed set to true if you allow inclusion of fields that aren't in the Entity's template
      * @param cutExtraFields in case superSetAllowed is false, it tells the method whether to fail in case of extra fields or to just warn.
+     * @param rawOperations a "backdoor" for special, db-dependant update operations
      * @return the updated entity (this) or null on failure
      */
     async update<T extends AbstractEntity>(fieldsToUpdate: Object, superSetAllowed = false, cutExtraFields = false, rawOperations = {}): Promise<T> {
@@ -166,10 +167,9 @@ export abstract class AbstractEntity {
 
     private async populateRelated(predicateSpecs: ProjectionPredicateItem[]): Promise<AbstractEntity> {
         for (let ps of predicateSpecs) {
-            const preds = ps.in ?
+            this[ps.pName] = ps.in ?
                 await this.incomingPreds(ps.pName, {projection: ps.projection as string[]})
                 : await this.outgoingPreds(ps.pName, {projection: ps.projection as string[]})
-            this[ps.pName] = preds
         }
         return this
     }
@@ -204,27 +204,48 @@ export abstract class AbstractEntity {
     }
 
     /**
-     *
+     * return the outgoing connections of the given type. Could also include the peer, if that's asked for. Predicate
+     * hierarchy is taken into account.
      * @param predicate the predicate name or dcr
-     * @param opts query
+     * @param opts query options, including enrichment information
      */
     async outgoingPreds(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
         return this.semanticPackage.findPredicates(false, predicate, this.id, opts)
     }
 
+    /**
+     * return the incoming  connections of the given type. Could also include the peer, if that's asked for.
+     * Predicate hierarchy is taken into account.
+     * @param predicate the predicate name or dcr
+     * @param opts query options, including enrichment information
+     */
     async incomingPreds(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}): Promise<Predicate[]> {
         return this.semanticPackage.findPredicates(true, predicate, this.id, opts)
     }
 
+    /**
+     * Like outgoingPreds but with pagination
+     * @param predicate
+     * @param opts
+     * @param pagination pagination parameters
+     */
     async outgoingPredsPaging(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
         return this.semanticPackage.pagePredicates(false, predicate, this.id, opts, pagination)
     }
 
-
+    /**
+     * Like incomingPreds but with pagination
+     * @param predicate
+     * @param opts
+     * @param pagination pagination parameters
+     */
     async incomingPredsPaging(predicate: string | PredicateDcr, opts: IFindPredicatesOptions = {}, pagination: IReadOptions): Promise<IReadResult> {
         return this.semanticPackage.pagePredicates(true, predicate, this.id, opts, pagination)
     }
 
+    /**
+     * @return the parent entity if there is one
+     */
     async getParent<T extends AbstractEntity>(): Promise<T> {
         if (typeof this._parent == 'string') {
             this._parent = await this.semanticPackage.loadEntity(this._parent)
@@ -264,6 +285,10 @@ export abstract class AbstractEntity {
         return [parent, ...(await this.parent.getAllAncestors())]
     }
 
+    /**
+     * Set a parent entity to this entity
+     * @param parent
+     */
     async setParent<T extends AbstractEntity>(parent: T) {
 
         // prevent circularity
@@ -276,6 +301,11 @@ export abstract class AbstractEntity {
         return await this.update({_parent: parent.id})
     }
 
+    /**
+     * Normally used for database front end etc.
+     * @param _iDepth
+     * @param _oDepth
+     */
     async drill(_iDepth, _oDepth) {
 
         await this.fullDto()

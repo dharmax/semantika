@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", {value: true});
 exports.PredicateDcr = exports.EntityDcr = exports.SemanticPartDescriptor = void 0;
-
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they
  * can be hierarchical which means, a descriptor inherits the *semantic meaning* of its parent - a useful fact that
@@ -13,9 +12,7 @@ class SemanticPartDescriptor {
         this._parents = [];
     }
 }
-
 exports.SemanticPartDescriptor = SemanticPartDescriptor;
-
 /**
  * Holds meta-data for an entity-type and semantically defines it. Usually, a entity type is represented by its own JS
  * class but theoretically one JS class may represent more than one entity type, but they must have separate descriptors.
@@ -32,18 +29,14 @@ class EntityDcr extends SemanticPartDescriptor {
         this.template = template;
         this._name = _name;
     }
-
     get name() {
         return this._name || this.clazz.name;
     }
-
     get parents() {
         return this._parents;
     }
 }
-
 exports.EntityDcr = EntityDcr;
-
 /**
  * Predicate descriptor denotes the type of the descriptor and it's supposed to have a semantically meaningful name to
  * the relevant business logic.
@@ -69,7 +62,6 @@ class PredicateDcr extends SemanticPartDescriptor {
         this.payload = payload;
         this.rules = rules;
     }
-
     get parents() {
         // @ts-ignore
         return this._parents;
