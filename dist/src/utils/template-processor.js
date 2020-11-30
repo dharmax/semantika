@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.processTemplate = void 0;
 const logged_exception_1 = require("./logged-exception");
 /**
@@ -23,13 +23,14 @@ function processTemplate(template, givenFields, superSetAllowed, strict, entityT
             const templateEntry = template[fn];
             const validator = templateEntry && templateEntry['validate'];
             if (validator) {
-                const {error, value} = templateEntry.validate(fv);
+                const { error, value } = templateEntry.validate(fv);
                 if (error)
                     throw new logged_exception_1.LoggedException(`field '${fn}' in entity ${entityType} doesn't match template rules. ${error}`);
                 fv = value;
             }
             fields[fn] = fv;
-        } else {
+        }
+        else {
             if (!strict)
                 throw new logged_exception_1.LoggedException(`Writing a field ${fn} that is not within the template of ${entityType}`);
             else {

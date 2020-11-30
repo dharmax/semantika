@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.Ontology = void 0;
 const logged_exception_1 = require("./utils/logged-exception");
 class Ontology {

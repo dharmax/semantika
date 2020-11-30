@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.SemanticPackage = void 0;
 const logged_exception_1 = require("./utils/logged-exception");
 const predicate_1 = require("./predicate");
@@ -51,7 +51,7 @@ class SemanticPackage {
             throw `Requested entity type ${eDcr.name} does not match entity's record of type ${rType}.`;
         // @ts-ignore
         let e = new eDcr.clazz(this, id);
-        record && Object.assign(e, {id}, record);
+        record && Object.assign(e, { id }, record);
         // record && Object.assign(e, {id, _etype: eDcr.name}, record)
         return e;
     }
@@ -129,8 +129,8 @@ class SemanticPackage {
         const pcol = await this.collectionManager.predicateCollection();
         return pcol.deleteByQuery({
             $or: [
-                {sourceId: entityId},
-                {targetId: entityId},
+                { sourceId: entityId },
+                { targetId: entityId },
             ]
         });
     }
@@ -165,7 +165,7 @@ class SemanticPackage {
         const pCol = await this.predicateCollection(predicateDcr);
         const predicateNames = expandPredicate(predicateDcr);
         let query = predicateNames ? {
-            predicateName: {$in: predicateNames}
+            predicateName: { $in: predicateNames }
         } : {};
         const whichPeer = incoming ? 'source' : 'target';
         const whichSelf = !incoming ? 'source' : 'target';
@@ -173,7 +173,7 @@ class SemanticPackage {
         if (entityId)
             query[selfId] = entityId;
         if (opts.peerType && opts.peerType !== '*')
-            query[whichPeer + 'Type'] = typeof opts.peerType == 'string' ? opts.peerType : {$in: opts.peerType};
+            query[whichPeer + 'Type'] = typeof opts.peerType == 'string' ? opts.peerType : { $in: opts.peerType };
         if (opts.peerId)
             query[whichPeer + 'Id'] = opts.peerId;
         const fieldProjection = (pagination && pagination.projection || []).concat(opts.projection || []);
@@ -182,7 +182,8 @@ class SemanticPackage {
             let rr = await pCol.load(pagination, query);
             rr.items = await enrich(rr.items);
             return rr;
-        } else {
+        }
+        else {
             const predicates = await pCol.findSome(query);
             return await enrich(predicates);
         }
@@ -214,9 +215,10 @@ class SemanticPackage {
         const targetId = target['id'] || target;
         const query = {};
         if (bidirectional) {
-            query.$or = [{sourceId, targetId},
-                {targetId: sourceId, sourceId: targetId}];
-        } else {
+            query.$or = [{ sourceId, targetId },
+                { targetId: sourceId, sourceId: targetId }];
+        }
+        else {
             query.sourceId = sourceId;
             query.targetId = targetId;
         }
@@ -285,7 +287,8 @@ class CollectionManager {
                 if (col) {
                     this.collectionMutex.release();
                     resolve(col);
-                } else {
+                }
+                else {
                     this.storage.getPhysicalCollection(name, forPredicate).then(physicalCollection => {
                         const newCollection = wrapper(physicalCollection);
                         this.collections[name] = newCollection;

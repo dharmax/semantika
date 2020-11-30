@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mutex = void 0;
 const events_1 = require("events");
 class Mutex {
@@ -11,7 +11,8 @@ class Mutex {
     lock(fn) {
         if (this.locked) {
             this.queue.once(Mutex.event, () => this.lock(fn));
-        } else {
+        }
+        else {
             this.locked = true;
             fn();
         }

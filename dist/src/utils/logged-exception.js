@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoggedException = void 0;
 const logger_1 = require("./logger");
 class LoggedException extends Error {

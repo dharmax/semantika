@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.AbstractEntity = void 0;
 const bluebird_1 = require("bluebird");
 const template_processor_1 = require("./utils/template-processor");
@@ -51,7 +51,6 @@ class AbstractEntity {
     async getAssociatedCollection() {
         return this.semanticPackage.collectionForEntityType(this.descriptor);
     }
-
     /**
      * Updates the specific fields-values of this entity in the memory and the database. Uses optimistic locking.
      * @param fieldsToUpdate the object with the field to change and their new values
@@ -65,7 +64,7 @@ class AbstractEntity {
         const fields = template_processor_1.processTemplate(this.template, fieldsToUpdate, superSetAllowed, cutExtraFields, this.typeName(), true);
         const res = await col.updateDocument(this.id, fields, this._version, rawOperations);
         if (res) {
-            Object.assign(this, fields, {_version: this._version + 1});
+            Object.assign(this, fields, { _version: this._version + 1 });
             // @ts-ignore
             return this;
         }
@@ -146,8 +145,8 @@ class AbstractEntity {
     async populateRelated(predicateSpecs) {
         for (let ps of predicateSpecs) {
             this[ps.pName] = ps.in ?
-                await this.incomingPreds(ps.pName, {projection: ps.projection})
-                : await this.outgoingPreds(ps.pName, {projection: ps.projection});
+                await this.incomingPreds(ps.pName, { projection: ps.projection })
+                : await this.outgoingPreds(ps.pName, { projection: ps.projection });
         }
         return this;
     }
@@ -235,7 +234,8 @@ class AbstractEntity {
         if (accumulate) {
             val = Object.assign(val, childVal);
             return parent ? await parent.getFieldRecursive(fieldName, accumulate, val) : val;
-        } else {
+        }
+        else {
             if (val)
                 return val;
             return parent ? await parent.getFieldRecursive(fieldName, accumulate) : undefined;
@@ -259,7 +259,7 @@ class AbstractEntity {
             if (entity.id === this.id)
                 throw new logged_exception_1.LoggedException('Circular retailer parenthood attempted');
         });
-        return await this.update({_parent: parent.id});
+        return await this.update({ _parent: parent.id });
     }
     /**
      * Normally used for database front end etc.
@@ -271,13 +271,13 @@ class AbstractEntity {
         return populateConnections(this, _iDepth, _oDepth);
         async function populateConnections(entity, iDepth, oDepth) {
             if (iDepth) {
-                const predicates = await entity.incomingPreds(undefined, {peerType: '*'});
+                const predicates = await entity.incomingPreds(undefined, { peerType: '*' });
                 for (const p of predicates)
                     p['peerEntity'] = await populateConnections(p.peer, iDepth - 1, 0);
                 entity['_incoming'] = predicates;
             }
             if (oDepth) {
-                const predicates = await entity.outgoingPreds(undefined, {peerType: '*'});
+                const predicates = await entity.outgoingPreds(undefined, { peerType: '*' });
                 for (const p of predicates)
                     p['peerEntity'] = await populateConnections(p.peer, 0, oDepth - 1);
                 entity['_outgoing'] = predicates;

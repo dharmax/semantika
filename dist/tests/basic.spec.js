@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 const joi = require("joi");
 const src_1 = require("../src");
 const mongo_storage_1 = require("../src/storage/mongo-store/mongo-storage");
@@ -18,10 +18,10 @@ describe("Testing Semantix", function () {
     beforeEach(() => {
     });
     it("should be able to create a Semantic Package and a collection ", async () => {
-        const george = await sp.createEntity(Person.dcr, {name: 'George'});
-        const hooli = await sp.createEntity(WorkPlace.dcr, {name: 'Hooli'});
-        const job = await sp.createPredicate(george, worksFor, hooli, {position: 'CTO'});
-        const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']});
+        const george = await sp.createEntity(Person.dcr, { name: 'George' });
+        const hooli = await sp.createEntity(WorkPlace.dcr, { name: 'Hooli' });
+        const job = await sp.createPredicate(george, worksFor, hooli, { position: 'CTO' });
+        const foundPredicates = await hooli.incomingPreds(worksFor, { projection: ['name'] });
         chai_1.expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
     });
 });

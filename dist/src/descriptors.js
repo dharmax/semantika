@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.PredicateDcr = exports.EntityDcr = exports.SemanticPartDescriptor = void 0;
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they

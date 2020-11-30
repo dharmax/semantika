@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.arrayToProjection = void 0;
 function arrayToProjection(projection, cursor) {
     projection = Array.from(new Set(projection));

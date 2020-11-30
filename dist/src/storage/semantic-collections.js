@@ -1,5 +1,5 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", {value: true});
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.PredicateCollection = exports.EntityCollection = exports.ArtifactCollection = void 0;
 const storage_1 = require("./storage");
 const constants_1 = require("../utils/constants");
@@ -101,7 +101,6 @@ class EntityCollection extends ArtifactCollection {
             result = await options.filterFunction(result);
         return result;
     }
-
     async findById(_id, projection) {
         const record = await this.basicCollection.findById(_id, projection);
         if (!record)
@@ -109,8 +108,7 @@ class EntityCollection extends ArtifactCollection {
         // @ts-ignore
         return this.semanticPackage.makeEntity(this.entityDcr, record._id, record);
     }
-
-    async* findGenerator(query, options = {}) {
+    async *findGenerator(query, options = {}) {
         const cursor = await this.basicCollection.find(query, options);
         while (await cursor.hasNext()) {
             const record = await cursor.next();
