@@ -8,8 +8,6 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-*.js
-*.js.map
 
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
@@ -88,7 +86,6 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
