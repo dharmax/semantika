@@ -47,4 +47,4 @@ export function processTemplate(template: Object, givenFields: Object, superSetA
     return fields
 }
 
-export type EntityTemplate = { [fieldName: string]: joi.Schema }
+export type EntityTemplate = { [fieldName: string]: joi.Schema | any }

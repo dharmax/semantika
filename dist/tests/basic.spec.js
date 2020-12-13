@@ -15,8 +15,6 @@ describe("Testing Semantix", function () {
             predicateDcrs: [worksFor]
         }, storage);
     });
-    beforeEach(() => {
-    });
     it("should be able to create a Semantic Package and a collection ", async () => {
         const george = await sp.createEntity(Person.dcr, { name: 'George' });
         const hooli = await sp.createEntity(WorkPlace.dcr, { name: 'Hooli' });
