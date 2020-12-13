@@ -2,12 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const joi = require("joi");
 const src_1 = require("../src");
-const mongo_storage_1 = require("../src/storage/mongo-store/mongo-storage");
 const chai_1 = require("chai");
+const src_2 = require("../src");
 describe("Testing Semantix", function () {
     let sp;
     before(async () => {
-        const storage = new mongo_storage_1.MongoStorage('mongodb://localhost/testing-semantix');
+        const storage = new src_2.MongoStore('mongodb://localhost/testing-semantix');
         await storage.connect();
         await storage.purgeDatabase();
         sp = new src_1.SemanticPackage('main', {
