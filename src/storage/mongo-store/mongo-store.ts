@@ -5,7 +5,7 @@ import {EntityDcr} from "../../descriptors";
 import {MongoBasicCollection} from "./mongo-basic-collection";
 import {SemanticPackage} from "../../semantic-package";
 
-export class MongoStorage extends AbstractStorage {
+export class MongoStore extends AbstractStorage {
 
     private collections = {};
     private queryDictionary: QueryDictionary

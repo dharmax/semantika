@@ -2,13 +2,13 @@ import * as joi from 'joi'
 import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
 import {EntityTemplate} from "../src/utils/template-processor";
 import {expect} from 'chai'
-import {MongoStorage} from "../src";
+import {MongoStore} from "../src";
 
 describe("Testing Semantix", function () {
 
     let sp: SemanticPackage
     before(async () => {
-        const storage = new MongoStorage('mongodb://localhost/testing-semantix');
+        const storage = new MongoStore('mongodb://localhost/testing-semantix');
         await storage.connect()
         await storage.purgeDatabase()
         sp = new SemanticPackage('main', {
