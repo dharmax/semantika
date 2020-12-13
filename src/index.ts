@@ -6,5 +6,4 @@ export * from "./raw-ontology";
 export * from "./predicate";
 export * from "./abstract-entity";
 export * from "./semantic-package";
-export * from "./storage/semantic-collections";
-export * from "./storage/mongo-store/mongo-basic-collection";
+export * from "./storage/index"
