@@ -1,5 +1,5 @@
 import {Collection as MongoCollection, MongoClient, SessionOptions} from "mongodb";
-import {AbstractStorage, IPhysicalCollection, QueryDictionary, StorageSession} from "../storage";
+import {AbstractStorage, ICollection, IPhysicalCollection, QueryDictionary, StorageSession} from "../storage";
 import {EntityCollection, PredicateCollection} from "../semantic-collections";
 import {EntityDcr} from "../../descriptors";
 import {MongoBasicCollection} from "./mongo-basic-collection";
@@ -49,7 +49,7 @@ export class MongoStore extends AbstractStorage {
         return new PredicateCollection(semanticPackage, this.makeBasicCollection(physicalCollection))
     }
 
-    makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: MongoBasicCollection) => void): MongoBasicCollection {
+    makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: MongoBasicCollection) => void): ICollection {
         const c = new MongoBasicCollection(physicalCollection as MongoCollection)
         initFunc && initFunc(c)
         return c

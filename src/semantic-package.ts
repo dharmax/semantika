@@ -14,7 +14,7 @@ import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem} from "./projection";
 import {EntityDcr, PredicateDcr} from "./descriptors";
-import {AbstractStorage, IPhysicalCollection} from "./storage/storage";
+import {AbstractStorage, ICollection, IPhysicalCollection} from "./storage/storage";
 import {Mutex} from "./utils/mutex";
 import {MongoBasicCollection} from "./storage";
 
@@ -327,7 +327,7 @@ class CollectionManager {
         return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc))
     }
 
-    basicCollection(name:string, initFunc: (col: EntityCollection) => void): IPhysicalCollection {
+    basicCollection(name:string, initFunc: (col: EntityCollection) => void): Promise<ICollection> {
         const collectionName = this.semanticPackage.name + ID_SEPARATOR + name
         return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc))
     }

@@ -3,10 +3,10 @@ import {LoggedException} from "../../utils/logged-exception";
 import {IReadOptions, IReadResult} from "../../types";
 import {props} from "bluebird";
 import {generate} from "short-uuid";
-import {DuplicateKeyError, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage";
+import {DuplicateKeyError, ICollection, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage";
 import {arrayToProjection} from "../../utils/array-to-projection";
 
-export class MongoBasicCollection implements IPhysicalCollection {
+export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
     /**
      * Not to be accessed directly.
