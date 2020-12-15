@@ -16,6 +16,7 @@ import {ProjectionItem} from "./projection";
 import {EntityDcr, PredicateDcr} from "./descriptors";
 import {AbstractStorage, IPhysicalCollection} from "./storage/storage";
 import {Mutex} from "./utils/mutex";
+import {MongoBasicCollection} from "./storage";
 
 /**
  * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
@@ -324,6 +325,11 @@ class CollectionManager {
     entityCollection(initFunc: (col: EntityCollection) => void, eDcr: EntityDcr): EntityCollection | Promise<EntityCollection> {
         const collectionName = this.semanticPackage.name + ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
         return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc))
+    }
+
+    basicCollection(name:string, initFunc: (col: EntityCollection) => void): IPhysicalCollection {
+        const collectionName = this.semanticPackage.name + ID_SEPARATOR + name
+        return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc))
     }
 
     async predicateCollection(p?: Predicate | string | PredicateDcr): Promise<PredicateCollection> {

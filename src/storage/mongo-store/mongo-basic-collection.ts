@@ -16,7 +16,6 @@ export class MongoBasicCollection implements IPhysicalCollection {
     constructor(private collection: MongoCollection) {
     }
 
-
     get name() {
         return this.collection.collectionName;
     }
