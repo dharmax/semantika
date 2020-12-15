@@ -280,6 +280,10 @@ class CollectionManager {
         const collectionName = this.semanticPackage.name + constants_1.ID_SEPARATOR + (eDcr.collectionName || eDcr.clazz.name);
         return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc));
     }
+    basicCollection(name, initFunc) {
+        const collectionName = this.semanticPackage.name + constants_1.ID_SEPARATOR + name;
+        return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc));
+    }
     async predicateCollection(p) {
         if (typeof p == 'string')
             return this.collectionForName(p, true, c => {
