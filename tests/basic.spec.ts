@@ -31,6 +31,16 @@ describe("Testing Semantix", function () {
         expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
 
     })
+
+    it("should use basic collection", async ()=>{
+        const col = await sp.basicCollection('basic')
+        await col.append( { x:10, y: 'bla' })
+
+        const doc:any = await col.findOne({x:10})
+
+        expect(doc.y).to.be.equal('bla')
+
+    })
 })
 
 

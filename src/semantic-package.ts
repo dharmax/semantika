@@ -102,6 +102,10 @@ export class SemanticPackage {
         return this.collectionManager.predicateCollection(pDcr)
     }
 
+    basicCollection(name: string, initFunc?: (col: ICollection) => void): Promise<ICollection> {
+        return this.collectionManager.basicCollection(name, initFunc)
+    }
+
     async createPredicate(source: AbstractEntity, pDcr: PredicateDcr, target: AbstractEntity, payload?: Object, selfKeys = {}): Promise<Predicate> {
         const pCol: PredicateCollection = await this.predicateCollection(pDcr)
         const pred: IPredicateRecord = {
@@ -327,7 +331,7 @@ class CollectionManager {
         return this.collectionForName(collectionName, false, c => this.storage.makeEntityCollection(c, eDcr, initFunc))
     }
 
-    basicCollection(name:string, initFunc: (col: EntityCollection) => void): Promise<ICollection> {
+    basicCollection(name: string, initFunc: (col: ICollection) => void): Promise<ICollection> {
         const collectionName = this.semanticPackage.name + ID_SEPARATOR + name
         return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc))
     }
