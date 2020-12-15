@@ -22,6 +22,12 @@ describe("Testing Semantix", function () {
         const foundPredicates = await hooli.incomingPreds(worksFor, { projection: ['name'] });
         chai_1.expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
     });
+    it("should use basic collection", async () => {
+        const col = await sp.basicCollection('basic');
+        await col.append({ x: 10, y: 'bla' });
+        const doc = await col.findOne({ x: 10 });
+        chai_1.expect(doc.y).to.be.equal('bla');
+    });
 });
 class Person extends src_1.AbstractEntity {
 }

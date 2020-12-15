@@ -84,6 +84,9 @@ class SemanticPackage {
     predicateCollection(pDcr) {
         return this.collectionManager.predicateCollection(pDcr);
     }
+    basicCollection(name, initFunc) {
+        return this.collectionManager.basicCollection(name, initFunc);
+    }
     async createPredicate(source, pDcr, target, payload, selfKeys = {}) {
         const pCol = await this.predicateCollection(pDcr);
         const pred = {
