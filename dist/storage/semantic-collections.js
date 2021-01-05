@@ -108,6 +108,10 @@ class EntityCollection extends ArtifactCollection {
         // @ts-ignore
         return this.semanticPackage.makeEntity(this.entityDcr, record._id, record);
     }
+    async findOne(query, projection) {
+        const record = await super.findOne(query, projection);
+        return this.semanticPackage.makeEntity(this.entityDcr, undefined, record);
+    }
     async *findGenerator(query, options = {}) {
         const cursor = await this.basicCollection.find(query, options);
         while (await cursor.hasNext()) {
