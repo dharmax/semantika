@@ -2,7 +2,7 @@ import {all} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem, ProjectionPredicateItem} from "./projection";
-import {StandardFields} from "./storage/storage";
+import {StandardFields} from "./storage";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
 import {EntityDcr, PredicateDcr} from "./descriptors";
 import {logger} from "./utils/logger";
@@ -48,14 +48,6 @@ export abstract class AbstractEntity {
         return this._version
     }
 
-    /***
-     * @return the template. Normally you'd never have to call that yourself.
-     */
-    get template() {
-        const t = this.constructor['getTemplate'] || this.descriptor.template
-        return t && t() || null
-    }
-
     /**
      * @return the associated collection for those entity types
      *
@@ -74,7 +66,7 @@ export abstract class AbstractEntity {
      */
     async update<T extends AbstractEntity>(fieldsToUpdate: Object, superSetAllowed = false, cutExtraFields = false, rawOperations = {}): Promise<T> {
         const col = await this.getAssociatedCollection()
-        const fields = processTemplate(this.template, fieldsToUpdate, superSetAllowed, cutExtraFields, this.typeName(), true)
+        const fields = processTemplate(this.descriptor.template, fieldsToUpdate, superSetAllowed, cutExtraFields, this.typeName(), true)
         const res = await col.updateDocument(this.id, fields, this._version, rawOperations)
         if (res) {
             Object.assign(this, fields, {_version: this._version + 1})
@@ -100,7 +92,7 @@ export abstract class AbstractEntity {
      */
     async getFields(...fields: string[]): Promise<{ [name: string]: any }> {
         const missingFields = fields.filter(f => !this[f])
-        const gt = this.template
+        const gt = this.descriptor.template
         if (gt) {
             const templateFieldNames = new Set(Object.keys(gt))
             for (let f of fields) {
@@ -128,7 +120,7 @@ export abstract class AbstractEntity {
      * populate all the fields defined in the template
      */
     populateAll<T extends AbstractEntity>(): Promise<T> {
-        return this.populate(...Object.keys(this.template))
+        return this.populate(...Object.keys(this.descriptor.template))
     }
 
     /**
@@ -138,7 +130,7 @@ export abstract class AbstractEntity {
      * @param options optional options :)
      */
     async fullDto<T>(options?: unknown): Promise<T> {
-        const data = await this.getFields(...Object.keys(this.template), '_created', '_lastUpdate')
+        const data = await this.getFields(...Object.keys(this.descriptor.template), '_created', '_lastUpdate')
         data.id = this.id
         data._entityType = this.typeName()
         return data as T;

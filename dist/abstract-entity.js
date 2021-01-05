@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AbstractEntity = void 0;
 const bluebird_1 = require("bluebird");
 const template_processor_1 = require("./utils/template-processor");
-const storage_1 = require("./storage/storage");
+const storage_1 = require("./storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
 class AbstractEntity {
@@ -37,13 +37,6 @@ class AbstractEntity {
     get version() {
         return this._version;
     }
-    /***
-     * @return the template. Normally you'd never have to call that yourself.
-     */
-    get template() {
-        const t = this.constructor['getTemplate'] || this.descriptor.template;
-        return t && t() || null;
-    }
     /**
      * @return the associated collection for those entity types
      *
@@ -61,7 +54,7 @@ class AbstractEntity {
      */
     async update(fieldsToUpdate, superSetAllowed = false, cutExtraFields = false, rawOperations = {}) {
         const col = await this.getAssociatedCollection();
-        const fields = template_processor_1.processTemplate(this.template, fieldsToUpdate, superSetAllowed, cutExtraFields, this.typeName(), true);
+        const fields = template_processor_1.processTemplate(this.descriptor.template, fieldsToUpdate, superSetAllowed, cutExtraFields, this.typeName(), true);
         const res = await col.updateDocument(this.id, fields, this._version, rawOperations);
         if (res) {
             Object.assign(this, fields, { _version: this._version + 1 });
@@ -85,7 +78,7 @@ class AbstractEntity {
      */
     async getFields(...fields) {
         const missingFields = fields.filter(f => !this[f]);
-        const gt = this.template;
+        const gt = this.descriptor.template;
         if (gt) {
             const templateFieldNames = new Set(Object.keys(gt));
             for (let f of fields) {
@@ -111,7 +104,7 @@ class AbstractEntity {
      * populate all the fields defined in the template
      */
     populateAll() {
-        return this.populate(...Object.keys(this.template));
+        return this.populate(...Object.keys(this.descriptor.template));
     }
     /**
      * This method is sometimes so it would return data that the application logic considers as a "full object", which
@@ -120,7 +113,7 @@ class AbstractEntity {
      * @param options optional options :)
      */
     async fullDto(options) {
-        const data = await this.getFields(...Object.keys(this.template), '_created', '_lastUpdate');
+        const data = await this.getFields(...Object.keys(this.descriptor.template), '_created', '_lastUpdate');
         data.id = this.id;
         data._entityType = this.typeName();
         return data;
