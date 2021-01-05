@@ -49,9 +49,11 @@ export class SemanticPackage {
      * @param record the record by which to populate the entity
      */
     makeEntity<T extends AbstractEntity>(eDcr?: EntityDcr, id?, record?): T {
-        const idSegments = (id || record?._id).split(ID_SEPARATOR)
+        id = id || ( record?._id || record?.id)
+        if (!id)
+            return null
+        const idSegments = id.split(ID_SEPARATOR)
         if (!eDcr) {
-            id = id || record.id || record._id
             if (!id)
                 throw new Error('Need at least a fully qualified ID')
             eDcr = this.ontology.edcr(idSegments[idSegments.length - 2])
