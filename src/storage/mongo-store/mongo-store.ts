@@ -9,7 +9,7 @@ export class MongoStore extends AbstractStorage {
 
     private collections = {};
     private queryDictionary: QueryDictionary
-    private dbClient: MongoClient
+    readonly dbClient: MongoClient
 
 
     constructor(uri: string) {
