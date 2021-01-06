@@ -164,10 +164,10 @@ class AbstractEntity {
     get p() {
         const self = this;
         return {
-            i: self.incomingPreds,
-            ip: self.incomingPredsPaging,
-            o: self.outgoingPreds,
-            op: self.outgoingPredsPaging
+            i: self.incomingPreds.bind(this),
+            ip: self.incomingPredsPaging.bind(this),
+            o: self.outgoingPreds.bind(this),
+            op: self.outgoingPredsPaging.bind(this)
         };
     }
     /**
