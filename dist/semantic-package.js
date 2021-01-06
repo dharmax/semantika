@@ -197,7 +197,7 @@ class SemanticPackage {
             if (opts.projection || opts.peerType) {
                 for (let pred of predicates) {
                     const peerType = pred[whichPeer + 'Type'];
-                    if (opts.peerType && opts.peerType != '*' && opts.peerType != peerType)
+                    if (opts.peerType && opts.peerType !== '*' && opts.peerType !== peerType)
                         continue;
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection);
                 }
@@ -290,15 +290,15 @@ class CollectionManager {
         return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc));
     }
     async predicateCollection(p) {
-        if (typeof p == 'string')
+        if (p && typeof p == 'string')
             return this.collectionForName(p, true, c => {
                 const col = this.storage.makePredicateCollection(this.semanticPackage, c);
                 predicateInitFunction(col);
                 return col;
             });
         // @ts-ignore
-        const pDcr = p && p.constructor.name === 'PredicateDcr' ? p : p.dcr;
-        const collectionName = pDcr.collectionName || (this.semanticPackage.name + constants_1.ID_SEPARATOR + '_Predicates');
+        const pDcr = p?.constructor.name === 'PredicateDcr' ? p : p?.dcr;
+        const collectionName = pDcr?.collectionName || (this.semanticPackage.name + constants_1.ID_SEPARATOR + '_Predicates');
         return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c));
     }
     async collectionForName(name, forPredicate, wrapper) {

@@ -4,19 +4,20 @@ import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
 import {Predicate} from "./predicate";
 import {
+    AbstractStorage,
     ArtifactCollection,
     EntityCollection,
+    ICollection,
+    IPhysicalCollection,
     IPredicateRecord,
     PredicateCollection
-} from "./storage/semantic-collections";
+} from "./storage";
 import {ID_SEPARATOR} from "./utils/constants";
 import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem} from "./projection";
 import {EntityDcr, PredicateDcr} from "./descriptors";
-import {AbstractStorage, ICollection, IPhysicalCollection} from "./storage/storage";
 import {Mutex} from "./utils/mutex";
-import {MongoBasicCollection} from "./storage";
 
 /**
  * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
@@ -237,7 +238,7 @@ export class SemanticPackage {
             if (opts.projection || opts.peerType) {
                 for (let pred of predicates) {
                     const peerType = pred[whichPeer + 'Type']
-                    if (opts.peerType && opts.peerType != '*' && opts.peerType != peerType)
+                    if (opts.peerType && opts.peerType !== '*' && opts.peerType !== peerType)
                         continue
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
                 }
@@ -339,16 +340,17 @@ class CollectionManager {
     }
 
     async predicateCollection(p?: Predicate | string | PredicateDcr): Promise<PredicateCollection> {
-        if (typeof p == 'string')
+
+        if (p && typeof p == 'string')
             return this.collectionForName(p, true, c => {
                 const col = this.storage.makePredicateCollection(this.semanticPackage, c)
                 predicateInitFunction(col)
                 return col
             })
         // @ts-ignore
-        const pDcr: PredicateDcr = p && p.constructor.name === 'PredicateDcr' ? p : (p as Predicate).dcr
+        const pDcr: PredicateDcr = p?.constructor.name === 'PredicateDcr' ? p : (p as Predicate)?.dcr
 
-        const collectionName = pDcr.collectionName || (this.semanticPackage.name + ID_SEPARATOR + '_Predicates')
+        const collectionName = pDcr?.collectionName || (this.semanticPackage.name + ID_SEPARATOR + '_Predicates')
         return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c))
     }
 
