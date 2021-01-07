@@ -119,6 +119,14 @@ class AbstractEntity {
         return data;
     }
     /**
+     * @return the current content of the object without fields that would hinder transfer
+     */
+    dto() {
+        const dto = Object.assign({}, this);
+        dto.semanticPackage = dto.groups = undefined;
+        return dto;
+    }
+    /**
      * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,
      * but are in connected predicates, which the projection refer to them).
      * @param projection field names
