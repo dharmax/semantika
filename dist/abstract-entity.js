@@ -29,7 +29,7 @@ class AbstractEntity {
      * @return entity's descriptor
      */
     get descriptor() {
-        return this.semanticPackage.ontology.edcr(this.typeName());
+        return this['dcr'] || this.semanticPackage.ontology.edcr(this.typeName());
     }
     /**
      * version (for the optimistic locking mechanism). Used internally.
@@ -116,6 +116,7 @@ class AbstractEntity {
         const data = await this.getFields(...Object.keys(this.descriptor.template), '_created', '_lastUpdate');
         data.id = this.id;
         data._entityType = this.typeName();
+        data.semanticPackage = undefined;
         return data;
     }
     /**

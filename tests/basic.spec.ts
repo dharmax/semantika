@@ -1,14 +1,18 @@
 import * as joi from 'joi'
 import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
 import {EntityTemplate} from "../src/utils/template-processor";
-import {expect} from 'chai'
+import * as CAP from 'chai-as-promised'
+import * as chai from 'chai'
 import {MongoStore} from "../src";
 
-describe("Testing Semantix", function () {
+chai.use( CAP)
+const expect = chai.expect
+
+describe("Testing Semantika", function () {
 
     let sp: SemanticPackage
     before(async () => {
-        const storage = new MongoStore('mongodb://localhost/testing-semantix');
+        const storage = new MongoStore('mongodb://localhost/testing-semantika');
         await storage.connect()
         await storage.purgeDatabase()
         sp = new SemanticPackage('main', {
@@ -30,6 +34,21 @@ describe("Testing Semantix", function () {
 
         expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
 
+
+    })
+
+    it( 'should delete properly', async ()=> {
+        const moshe:Person = await sp.createEntity(Person.dcr, {name:'Moshe'})
+
+        await moshe.erase()
+
+        expect( await sp.loadEntity( moshe.id)).to.be.null
+
+        const david:Person = await sp.createEntity(Person.dcr, {name:'David'})
+        const col = await sp.collectionForEntityType(david.descriptor)
+        await col.deleteByQuery( {name:'David'})
+        expect( await sp.loadEntity( david.id)).to.be.null
+
     })
 
     it("should use basic collection", async ()=>{
@@ -39,6 +58,7 @@ describe("Testing Semantix", function () {
         const doc:any = await col.findOne({x:10})
 
         expect(doc.y).to.be.equal('bla')
+
 
     })
 })
