@@ -40,7 +40,7 @@ class SemanticPackage {
      * @param record the record by which to populate the entity
      */
     makeEntity(eDcr, id, record) {
-        id = id || (record?._id || record?.id);
+        id = id || ((record === null || record === void 0 ? void 0 : record._id) || (record === null || record === void 0 ? void 0 : record.id));
         if (!id)
             return null;
         const idSegments = id.split(constants_1.ID_SEPARATOR);
@@ -206,7 +206,7 @@ class SemanticPackage {
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection);
                 }
             }
-            const result = predicates.map(p => pagination?.entityOnly ? p.peerEntity : new predicate_1.Predicate(self, p));
+            const result = predicates.map(p => (pagination === null || pagination === void 0 ? void 0 : pagination.entityOnly) ? p.peerEntity : new predicate_1.Predicate(self, p));
             return result;
         }
     }
@@ -296,6 +296,7 @@ class CollectionManager {
         return this.collectionForName(collectionName, false, c => this.storage.makeBasicCollection(c, initFunc));
     }
     async predicateCollection(p) {
+        var _a;
         if (p && typeof p == 'string')
             return this.collectionForName(p, true, c => {
                 const col = this.storage.makePredicateCollection(this.semanticPackage, c);
@@ -303,8 +304,8 @@ class CollectionManager {
                 return col;
             });
         // @ts-ignore
-        const pDcr = p?.constructor.name === 'PredicateDcr' ? p : p?.dcr;
-        const collectionName = pDcr?.collectionName || (this.semanticPackage.name + constants_1.ID_SEPARATOR + '_Predicates');
+        const pDcr = (p === null || p === void 0 ? void 0 : p.constructor.name) === 'PredicateDcr' ? p : (_a = p) === null || _a === void 0 ? void 0 : _a.dcr;
+        const collectionName = (pDcr === null || pDcr === void 0 ? void 0 : pDcr.collectionName) || (this.semanticPackage.name + constants_1.ID_SEPARATOR + '_Predicates');
         return this.collectionForName(collectionName, true, c => this.storage.makePredicateCollection(this.semanticPackage, c));
     }
     async collectionForName(name, forPredicate, wrapper) {

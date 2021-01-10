@@ -1,6 +1,6 @@
 {
   "name": "semantika",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "A very friendly and tight semantic-graph database layer inspired by OWL and RDF over mongodb",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -45,5 +45,8 @@
     {
       "type": "ISC"
     }
-  ]
+  ],
+  "engines": {
+    "node": "^14.0.0"
+  }
 }
