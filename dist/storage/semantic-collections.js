@@ -89,14 +89,14 @@ class EntityCollection extends ArtifactCollection {
         const cursor = await this.basicCollection.find(...arguments);
         return cursor.stream({
             transform: rec => {
-                return this.semanticPackage.makeEntity(this.entityDcr, rec._id, rec);
+                return options.asDto ? rec : this.semanticPackage.makeEntity(this.entityDcr, rec._id, rec);
             }
         });
     }
     async findSome(query, options = {}) {
         // @ts-ignore
         const arrayP = await super.findSome(...arguments);
-        let result = arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr, rec['_id'], rec));
+        let result = options.asDto ? arrayP : arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr, rec['_id'], rec));
         if (options.filterFunction)
             result = await options.filterFunction(result);
         return result;
@@ -107,6 +107,11 @@ class EntityCollection extends ArtifactCollection {
             return null;
         // @ts-ignore
         return this.semanticPackage.makeEntity(this.entityDcr, record._id, record);
+    }
+    async load(opt, query) {
+        const result = await super.load(opt, query);
+        result.items = result.items.map(record => this.semanticPackage.makeEntity(this.entityDcr, record._id, record));
+        return result;
     }
     async findOne(query, projection) {
         const record = await super.findOne(query, projection);

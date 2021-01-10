@@ -12,6 +12,7 @@ export interface IReadOptions {
     filterFunction?: FilterFunction
     sort?: SortSpec
     projection?: string[]
+    /** if true return the entities as DTOs, otherwise as entity objects */
     requestNumber?: number // created automatically
 }
 
@@ -38,5 +39,7 @@ export interface IFindPredicatesOptions {
     peerType?: string | string[],
     /** if specified, read the peer fields specified here and put them under the "peer" member*/
     projection?: string[],
+    /** if true return the entities as DTOs, otherwise as entity objects */
+    asDto?: boolean
 }
 

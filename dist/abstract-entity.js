@@ -2,14 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AbstractEntity = void 0;
 const bluebird_1 = require("bluebird");
+const semantic_package_1 = require("./semantic-package");
 const template_processor_1 = require("./utils/template-processor");
 const storage_1 = require("./storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
 class AbstractEntity {
     constructor(semanticPackage, id) {
-        this.semanticPackage = semanticPackage;
         this.id = id;
+        this._semanticPackageName = semanticPackage.name;
+    }
+    get semanticPackage() {
+        return semantic_package_1.SemanticPackage.findSemanticPackage(this._semanticPackageName);
     }
     /**
      * compare entities
@@ -116,16 +120,7 @@ class AbstractEntity {
         const data = await this.getFields(...Object.keys(this.descriptor.template), '_created', '_lastUpdate');
         data.id = this.id;
         data._entityType = this.typeName();
-        data.semanticPackage = undefined;
         return data;
-    }
-    /**
-     * @return the current content of the object without fields that would hinder transfer
-     */
-    dto() {
-        const dto = Object.assign({}, this);
-        dto.semanticPackage = dto.groups = undefined;
-        return dto;
     }
     /**
      * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,

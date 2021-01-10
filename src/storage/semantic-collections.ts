@@ -118,7 +118,7 @@ export class EntityCollection extends ArtifactCollection {
 
         return cursor.stream({
             transform: rec => {
-                return this.semanticPackage.makeEntity(this.entityDcr, rec._id, rec)
+                return options.asDto ? rec : this.semanticPackage.makeEntity(this.entityDcr, rec._id, rec)
             }
         })
 
@@ -130,7 +130,7 @@ export class EntityCollection extends ArtifactCollection {
         // @ts-ignore
         const arrayP = await super.findSome(...arguments)
 
-        let result = arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr, rec['_id'], rec))
+        let result = options.asDto ? arrayP : arrayP.map(rec => this.semanticPackage.makeEntity(this.entityDcr, rec['_id'], rec))
 
         if (options.filterFunction)
             result = await options.filterFunction(result)
@@ -144,6 +144,12 @@ export class EntityCollection extends ArtifactCollection {
             return null
         // @ts-ignore
         return <T>this.semanticPackage.makeEntity(this.entityDcr, record._id, record)
+    }
+
+    async load<T extends AbstractEntity>(opt: IReadOptions, query?: Object): Promise<IReadResult> {
+        const result = await super.load(opt, query);
+        result.items = result.items.map( record =>  <T>this.semanticPackage.makeEntity(this.entityDcr, record._id, record))
+        return result
     }
 
     async findOne<T>(query, projection?: string[]): Promise<T> {

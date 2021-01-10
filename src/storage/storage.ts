@@ -89,6 +89,7 @@ export interface IFindOptions {
     projection?: string[]
     filterFunction?: FilterFunction
     sort?: SortSpec
+    asDto?: boolean
 }
 
 

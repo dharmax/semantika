@@ -30,6 +30,7 @@ export class SemanticPackage {
 
     readonly ontology: Ontology
     private collectionManager: CollectionManager;
+    static semanticPackages: { [name: string]: SemanticPackage } = {};
 
     /**
      * @param name name of semantic package
@@ -40,6 +41,11 @@ export class SemanticPackage {
     constructor(readonly name: string, ontology: IRawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
         this.ontology = new Ontology(this, ontology)
         this.collectionManager = new CollectionManager(this, storage)
+        SemanticPackage.semanticPackages[name] = this
+    }
+
+    static findSemanticPackage(name: string): SemanticPackage {
+        return SemanticPackage.semanticPackages[name]
     }
 
     /**
@@ -50,7 +56,7 @@ export class SemanticPackage {
      * @param record the record by which to populate the entity
      */
     makeEntity<T extends AbstractEntity>(eDcr?: EntityDcr, id?, record?): T {
-        id = id || ( record?._id || record?.id)
+        id = id || (record?._id || record?.id)
         if (!id)
             return null
         const idSegments = id.split(ID_SEPARATOR)
@@ -243,7 +249,8 @@ export class SemanticPackage {
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
                 }
             }
-            return predicates.map(p => pagination && pagination.entityOnly ? p.peerEntity : new Predicate(self, p))
+            const result = predicates.map(p =>pagination?.entityOnly ? p.peerEntity : new Predicate(self, p))
+            return result
         }
 
     }

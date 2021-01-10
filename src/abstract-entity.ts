@@ -13,10 +13,15 @@ export abstract class AbstractEntity {
 
     private _version: number
     private _parent: AbstractEntity | string | undefined;
+    private _semanticPackageName: string
 
-    constructor(readonly semanticPackage: SemanticPackage, readonly id) {
+    constructor( semanticPackage: SemanticPackage, readonly id) {
+        this._semanticPackageName = semanticPackage.name
     }
 
+    get semanticPackage():SemanticPackage {
+        return SemanticPackage.findSemanticPackage( this._semanticPackageName)
+    }
 
     /**
      * compare entities
@@ -133,19 +138,8 @@ export abstract class AbstractEntity {
         const data = await this.getFields(...Object.keys(this.descriptor.template), '_created', '_lastUpdate')
         data.id = this.id
         data._entityType = this.typeName()
-        data.semanticPackage = undefined
         return data as T;
     }
-
-    /**
-     * @return the current content of the object without fields that would hinder transfer
-     */
-    dto() {
-        const dto:any = Object.assign( {}, this)
-        dto.semanticPackage = dto.groups = undefined
-        return dto
-    }
-
 
     /**
      * populate the field listed as well as fields projected from predicates (fields that are not in the entity's template,
