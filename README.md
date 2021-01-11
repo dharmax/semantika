@@ -1,4 +1,4 @@
-# Semantix
+# Semantika (a.k.a Semantix)
 A very friendly semantic-graph database base layer.
 
 ## Motivation
