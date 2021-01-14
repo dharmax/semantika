@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PredicateDcr = exports.EntityDcr = exports.SemanticPartDescriptor = void 0;
+const semantic_package_1 = require("./semantic-package");
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they
  * can be hierarchical which means, a descriptor inherits the *semantic meaning* of its parent - a useful fact that
@@ -11,6 +12,12 @@ class SemanticPartDescriptor {
     constructor() {
         this._parents = [];
     }
+    get semanticPackage() {
+        return semantic_package_1.SemanticPackage.findSemanticPackage(this.semanticPackageName);
+    }
+    set semanticPackage(sp) {
+        this.semanticPackageName = sp.name;
+    }
 }
 exports.SemanticPartDescriptor = SemanticPartDescriptor;
 /**
@@ -19,9 +26,9 @@ exports.SemanticPartDescriptor = SemanticPartDescriptor;
  */
 class EntityDcr extends SemanticPartDescriptor {
     /**
-     *
      * @param clazz the JS class that represents the entity type
      * @param template the template definition of the entities' fields
+     * @param _name (optional) alternative name for the dcr (it's the class name by default)
      */
     constructor(clazz, template, _name) {
         super();

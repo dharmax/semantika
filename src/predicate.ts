@@ -1,6 +1,6 @@
 import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
-import {IPredicateRecord, PredicateCollection} from "./storage/semantic-collections";
+import {IPredicateRecord, PredicateCollection} from "./storage";
 import {SemanticPackage} from "./semantic-package";
 
 /**
@@ -13,7 +13,7 @@ export class Predicate implements IPredicateRecord {
 
     private _version: number
     readonly _id: string
-    readonly semanticPackage: SemanticPackage
+    private readonly semanticPackageName: string
     predicateName: string
     sourceId: string
     sourceType: string
@@ -27,12 +27,17 @@ export class Predicate implements IPredicateRecord {
     private sourceEntity: AbstractEntity
     private targetEntity: AbstractEntity
 
-    constructor(readonly semanticPackage: SemanticPackage, record: IPredicateRecord) {
+    constructor(semanticPackage: SemanticPackage, record: IPredicateRecord) {
+        this.semanticPackageName = semanticPackage.name
         this._id = record._id || record['id']
         delete record['id']
         Object.assign(this, record)
         this.sourceEntity = record.peerIsSource && record.peerEntity
         this.targetEntity = !record.peerIsSource && record.peerEntity
+    }
+
+    get semanticPackage() {
+        return SemanticPackage.findSemanticPackage(this.semanticPackageName)
     }
 
     get dcr() {

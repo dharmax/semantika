@@ -1,7 +1,7 @@
 import {SemanticPackage} from "./semantic-package";
 import {AbstractEntity} from "./abstract-entity";
 import {EntityTemplate} from "./utils/template-processor";
-import {EntityCollection} from "./storage/semantic-collections";
+import {EntityCollection} from "./storage";
 
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they
@@ -10,12 +10,18 @@ import {EntityCollection} from "./storage/semantic-collections";
  * where the rules of inheritance also apply.
  */
 export abstract class SemanticPartDescriptor {
-    semanticPackage: SemanticPackage;
+    protected semanticPackageName: string;
     _parents: SemanticPartDescriptor[] = []
 
     // an optionally alternative collection name. By default, the name is automatically determined according to the type
     collectionName: string;
 
+    get semanticPackage() {
+        return SemanticPackage.findSemanticPackage(this.semanticPackageName)
+    }
+    set semanticPackage(sp:SemanticPackage) {
+        this.semanticPackageName = sp.name
+    }
 }
 
 /**
@@ -29,9 +35,9 @@ export class EntityDcr extends SemanticPartDescriptor {
     initializer: (col: EntityCollection) => void;
 
     /**
-     *
      * @param clazz the JS class that represents the entity type
      * @param template the template definition of the entities' fields
+     * @param _name (optional) alternative name for the dcr (it's the class name by default)
      */
     constructor(readonly clazz: typeof AbstractEntity, readonly template: EntityTemplate, private _name?: string) {
         super();

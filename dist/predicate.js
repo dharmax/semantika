@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.idAndType2entity = exports.Predicate = void 0;
 const logged_exception_1 = require("./utils/logged-exception");
+const semantic_package_1 = require("./semantic-package");
 /**
  * Represents a semantic relation between two semantic parts (entities). This class is not to be extended. The predicate's
  * descriptor gives the predicate its semantic meaning. A predicate may have a payload of user-data. The term "peer" reference
@@ -10,12 +11,15 @@ const logged_exception_1 = require("./utils/logged-exception");
  */
 class Predicate {
     constructor(semanticPackage, record) {
-        this.semanticPackage = semanticPackage;
+        this.semanticPackageName = semanticPackage.name;
         this._id = record._id || record['id'];
         delete record['id'];
         Object.assign(this, record);
         this.sourceEntity = record.peerIsSource && record.peerEntity;
         this.targetEntity = !record.peerIsSource && record.peerEntity;
+    }
+    get semanticPackage() {
+        return semantic_package_1.SemanticPackage.findSemanticPackage(this.semanticPackageName);
     }
     get dcr() {
         return this.semanticPackage.ontology.pdcr(this.predicateName);
