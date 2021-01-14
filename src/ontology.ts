@@ -50,6 +50,9 @@ export class Ontology {
         return res
     }
 
+    pdcrNames() {
+        return Object.keys(this.predicateDcrs)
+    }
     edcrNames() {
         return Object.keys(this.entityDcrs)
     }

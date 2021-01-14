@@ -44,6 +44,9 @@ class Ontology {
             throw new logged_exception_1.LoggedException('No such entity descriptor ' + name);
         return res;
     }
+    pdcrNames() {
+        return Object.keys(this.predicateDcrs);
+    }
     edcrNames() {
         return Object.keys(this.entityDcrs);
     }
