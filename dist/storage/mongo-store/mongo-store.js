@@ -9,7 +9,7 @@ class MongoStore extends storage_1.AbstractStorage {
     constructor(uri) {
         super();
         this.collections = {};
-        this.dbClient = new mongodb_1.MongoClient(uri);
+        this.dbClient = new mongodb_1.MongoClient(uri, { useUnifiedTopology: true });
     }
     async connect() {
         return this.dbClient.connect();

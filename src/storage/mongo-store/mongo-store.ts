@@ -14,7 +14,7 @@ export class MongoStore extends AbstractStorage {
 
     constructor(uri: string) {
         super()
-        this.dbClient = new MongoClient(uri);
+        this.dbClient = new MongoClient(uri, {useUnifiedTopology:true});
     }
 
     async connect() {

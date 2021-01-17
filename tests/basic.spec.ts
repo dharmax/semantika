@@ -4,9 +4,24 @@ import {EntityTemplate} from "../src/utils/template-processor";
 import * as CAP from 'chai-as-promised'
 import * as chai from 'chai'
 import {MongoStore} from "../src";
+import {MongoClient} from "mongodb";
 
-chai.use( CAP)
+chai.use(CAP)
 const expect = chai.expect
+
+describe("test mongo connectivity", () => {
+
+    it('should connect to mongo db', async () => {
+
+        const client = new MongoClient('mongodb://localhost:27017/testing-semantika', {useUnifiedTopology:true, useNewUrlParser:true})
+
+        const con = await client.connect()
+        await con.close()
+
+
+    })
+
+})
 
 describe("Testing Semantika", function () {
 
@@ -37,25 +52,25 @@ describe("Testing Semantika", function () {
 
     })
 
-    it( 'should delete properly', async ()=> {
-        const moshe:Person = await sp.createEntity(Person.dcr, {name:'Moshe'})
+    it('should delete properly', async () => {
+        const moshe: Person = await sp.createEntity(Person.dcr, {name: 'Moshe'})
 
         await moshe.erase()
 
-        expect( await sp.loadEntity( moshe.id)).to.be.null
+        expect(await sp.loadEntity(moshe.id)).to.be.null
 
-        const david:Person = await sp.createEntity(Person.dcr, {name:'David'})
+        const david: Person = await sp.createEntity(Person.dcr, {name: 'David'})
         const col = await sp.collectionForEntityType(david.descriptor)
-        await col.deleteByQuery( {name:'David'})
-        expect( await sp.loadEntity( david.id)).to.be.null
+        await col.deleteByQuery({name: 'David'})
+        expect(await sp.loadEntity(david.id)).to.be.null
 
     })
 
-    it("should use basic collection", async ()=>{
+    it("should use basic collection", async () => {
         const col = await sp.basicCollection('basic')
-        await col.append( { x:10, y: 'bla' })
+        await col.append({x: 10, y: 'bla'})
 
-        const doc:any = await col.findOne({x:10})
+        const doc: any = await col.findOne({x: 10})
 
         expect(doc.y).to.be.equal('bla')
 
