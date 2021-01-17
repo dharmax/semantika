@@ -9,16 +9,14 @@ import {MongoClient} from "mongodb";
 chai.use(CAP)
 const expect = chai.expect
 
+
 describe("test mongo connectivity", () => {
 
     it('should connect to mongo db', async () => {
 
         const client = new MongoClient('mongodb://localhost:27017/testing-semantika', {useUnifiedTopology:true, useNewUrlParser:true})
-
         const con = await client.connect()
         await con.close()
-
-
     })
 
 })
@@ -35,6 +33,9 @@ describe("Testing Semantika", function () {
             predicateDcrs: [worksFor]
         }, storage)
 
+        process.on('SIGINT', async () => {
+            await storage.close()
+        })
     })
 
     it("should be able to create a Semantic Package and a collection ", async () => {

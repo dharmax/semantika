@@ -73,6 +73,8 @@ export abstract class AbstractStorage {
 
     abstract purgeDatabase(): Promise<any>;
 
+    abstract close(): Promise<void>
+
 
 }
 

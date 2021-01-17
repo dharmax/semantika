@@ -14,7 +14,7 @@ export class MongoStore extends AbstractStorage {
 
     constructor(uri: string) {
         super()
-        this.dbClient = new MongoClient(uri, {useUnifiedTopology:true});
+        this.dbClient = new MongoClient(uri, {useUnifiedTopology: true, useNewUrlParser: true});
     }
 
     async connect() {
@@ -33,6 +33,10 @@ export class MongoStore extends AbstractStorage {
 
         this.collections = {}
         return await this.dbClient.db().dropDatabase()
+    }
+
+    async close() {
+        return await this.dbClient.close()
     }
 
     async getPhysicalCollection(name: string): Promise<any> {

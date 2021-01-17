@@ -9,7 +9,7 @@ class MongoStore extends storage_1.AbstractStorage {
     constructor(uri) {
         super();
         this.collections = {};
-        this.dbClient = new mongodb_1.MongoClient(uri, { useUnifiedTopology: true });
+        this.dbClient = new mongodb_1.MongoClient(uri, { useUnifiedTopology: true, useNewUrlParser: true });
     }
     async connect() {
         return this.dbClient.connect();
@@ -23,6 +23,9 @@ class MongoStore extends storage_1.AbstractStorage {
     async purgeDatabase() {
         this.collections = {};
         return await this.dbClient.db().dropDatabase();
+    }
+    async close() {
+        return await this.dbClient.close();
     }
     async getPhysicalCollection(name) {
         return this.dbClient.db().collection(name);
