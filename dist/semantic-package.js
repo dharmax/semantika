@@ -69,6 +69,9 @@ class SemanticPackage {
     async loadEntityById(id, ...projection) {
         const idSegments = id.split(constants_1.ID_SEPARATOR);
         const entityTypeName = idSegments[idSegments.length - 2];
+        const spName = idSegments[0];
+        if (spName !== this.name)
+            return SemanticPackage.findSemanticPackage(spName).loadEntityById(id, ...projection);
         const eDcr = this.ontology.edcr(entityTypeName);
         if (!eDcr)
             throw new Error(`No such entity type ${eDcr}`);

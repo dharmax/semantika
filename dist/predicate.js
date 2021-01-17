@@ -31,19 +31,13 @@ class Predicate {
         return this['peerEntity'];
     }
     async getSource(...projection) {
-        if (!this.sourceEntity) {
-            const peerClass = this.semanticPackage.ontology.edcr(this.sourceType).clazz;
-            let sCol = await this.storage.collectionForEntityType(peerClass);
-            this.sourceEntity = (await sCol.findById(this.sourceId, projection));
-        }
+        if (!this.sourceEntity)
+            this.sourceEntity = await this.semanticPackage.loadEntityById(this.sourceId, ...projection);
         return this.sourceEntity;
     }
     async getTarget(...projection) {
-        if (!this.targetEntity) {
-            const peerClass = this.semanticPackage.ontology.edcr(this.targetType).clazz;
-            let peerCollection = await this.storage.collectionForEntityType(peerClass);
-            this.targetEntity = (await peerCollection.findById(this.targetId, projection));
-        }
+        if (!this.targetEntity)
+            this.targetEntity = await this.semanticPackage.loadEntityById(this.targetId, ...projection);
         return this.targetEntity;
     }
     async change(fields) {

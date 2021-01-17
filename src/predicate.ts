@@ -53,21 +53,16 @@ export class Predicate implements IPredicateRecord {
     }
 
     async getSource<T extends AbstractEntity>(...projection: string[]): Promise<T> {
-        if (!this.sourceEntity) {
-            const peerClass = this.semanticPackage.ontology.edcr(this.sourceType).clazz
-            let sCol = await this.storage.collectionForEntityType(peerClass)
-            this.sourceEntity = <AbstractEntity>(await sCol.findById(this.sourceId, projection))
-        }
+        if (!this.sourceEntity)
+            this.sourceEntity = await this.semanticPackage.loadEntityById(this.sourceId, ...projection)
 
         return <T><unknown>this.sourceEntity
     }
 
     async getTarget(...projection: string[]) {
-        if (!this.targetEntity) {
-            const peerClass = this.semanticPackage.ontology.edcr(this.targetType).clazz
-            let peerCollection = await this.storage.collectionForEntityType(peerClass)
-            this.targetEntity = <AbstractEntity>(await peerCollection.findById(this.targetId, projection))
-        }
+        if (!this.targetEntity)
+            this.targetEntity = await this.semanticPackage.loadEntityById(this.targetId, ...projection)
+
         return this.targetEntity
     }
 

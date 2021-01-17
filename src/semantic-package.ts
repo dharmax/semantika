@@ -86,6 +86,10 @@ export class SemanticPackage {
     async loadEntityById<T>(id: string, ...projection: string[]): Promise<T> {
         const idSegments = id.split(ID_SEPARATOR);
         const entityTypeName = idSegments[idSegments.length - 2]
+        const spName = idSegments[0]
+        if (spName !== this.name)
+            return SemanticPackage.findSemanticPackage(spName).loadEntityById(id, ...projection)
+
         const eDcr = this.ontology.edcr(entityTypeName)
         if (!eDcr)
             throw new Error(`No such entity type ${eDcr}`)
@@ -249,7 +253,7 @@ export class SemanticPackage {
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
                 }
             }
-            const result = predicates.map(p =>pagination?.entityOnly ? p.peerEntity : new Predicate(self, p))
+            const result = predicates.map(p => pagination?.entityOnly ? p.peerEntity : new Predicate(self, p))
             return result
         }
 
