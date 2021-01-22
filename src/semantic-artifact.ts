@@ -1,6 +1,15 @@
 import {SemanticPackage} from "./semantic-package";
 
-export interface SemanticArtifact {
+export abstract class SemanticArtifact {
+    private readonly _semanticPackageName: string
 
-    readonly semanticPackage: SemanticPackage
+    id
+    protected constructor(sp: SemanticPackage, public _id) {
+        this._semanticPackageName = sp.name
+        this.id = _id
+    }
+
+    get semanticPackage(): SemanticPackage {
+        return SemanticPackage.findSemanticPackage(this._semanticPackageName)
+    }
 }

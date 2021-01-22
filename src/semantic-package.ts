@@ -3,21 +3,16 @@ import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
 import {Predicate} from "./predicate";
-import {
-    AbstractStorage,
-    ArtifactCollection,
-    EntityCollection,
-    ICollection,
-    IPhysicalCollection,
-    IPredicateRecord,
-    PredicateCollection
-} from "./storage";
+import {AbstractStorage, ICollection, IPhysicalCollection} from "./storage";
 import {ID_SEPARATOR} from "./utils/constants";
 import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem} from "./projection";
 import {EntityDcr, PredicateDcr} from "./descriptors";
 import {Mutex} from "./utils/mutex";
+import {ArtifactCollection} from "./artifact-collection";
+import {EntityCollection} from "./entities-collection";
+import {IPredicateRecord, PredicateCollection} from "./predicates-collection";
 
 /**
  * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
@@ -253,8 +248,7 @@ export class SemanticPackage {
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection)
                 }
             }
-            const result = predicates.map(p => pagination?.entityOnly ? p.peerEntity : new Predicate(self, p))
-            return result
+            return predicates.map(p => pagination?.entityOnly ? p.peerEntity : new Predicate(self, p))
         }
 
     }

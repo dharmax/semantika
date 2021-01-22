@@ -4,6 +4,14 @@ exports.StreamFormats = exports.StandardFields = exports.DuplicateKeyError = exp
 var mongodb_1 = require("mongodb");
 Object.defineProperty(exports, "Cursor", { enumerable: true, get: function () { return mongodb_1.Cursor; } });
 class AbstractStorage {
+    createCustomQuery(queryName, queryParameters) {
+        if (!queryName)
+            return null;
+        const queryConstructor = this.queryDictionary[queryName];
+        if (!queryConstructor)
+            throw new Error(`No such query constructor ${queryName}`);
+        return queryConstructor(queryParameters);
+    }
 }
 exports.AbstractStorage = AbstractStorage;
 class DuplicateKeyError extends Error {

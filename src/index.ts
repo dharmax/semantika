@@ -7,3 +7,7 @@ export * from "./predicate";
 export * from "./abstract-entity";
 export * from "./semantic-package";
 export * from "./storage/index"
+export {ArtifactCollection} from "./artifact-collection";
+export {EntityCollection} from "./entities-collection";
+export {IPredicateRecord} from "./predicates-collection";
+export {PredicateCollection} from "./predicates-collection";

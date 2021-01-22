@@ -1,7 +1,8 @@
 import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
-import {IPredicateRecord, PredicateCollection} from "./storage";
 import {SemanticPackage} from "./semantic-package";
+import {IPredicateRecord, PredicateCollection} from "./predicates-collection";
+import {SemanticArtifact} from "./semantic-artifact";
 
 /**
  * Represents a semantic relation between two semantic parts (entities). This class is not to be extended. The predicate's
@@ -9,11 +10,9 @@ import {SemanticPackage} from "./semantic-package";
  * to a connected artifact. It is possible to define (using the descriptor) peer (target or source) fields that would be copied
  * automatically to the predicate record, in order to support functionality like index supported filtering, etc.
  */
-export class Predicate implements IPredicateRecord {
+export class Predicate extends SemanticArtifact implements IPredicateRecord {
 
     private _version: number
-    readonly _id: string
-    private readonly semanticPackageName: string
     predicateName: string
     sourceId: string
     sourceType: string
@@ -28,24 +27,15 @@ export class Predicate implements IPredicateRecord {
     private targetEntity: AbstractEntity
 
     constructor(semanticPackage: SemanticPackage, record: IPredicateRecord) {
-        this.semanticPackageName = semanticPackage.name
-        this._id = record._id || record['id']
+        super(semanticPackage, record._id || record.id)
         delete record['id']
         Object.assign(this, record)
         this.sourceEntity = record.peerIsSource && record.peerEntity
         this.targetEntity = !record.peerIsSource && record.peerEntity
     }
 
-    get semanticPackage() {
-        return SemanticPackage.findSemanticPackage(this.semanticPackageName)
-    }
-
     get dcr() {
         return this.semanticPackage.ontology.pdcr(this.predicateName)
-    }
-
-    get id() {
-        return this['_id']
     }
 
     get peer(): AbstractEntity {

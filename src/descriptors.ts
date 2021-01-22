@@ -1,7 +1,7 @@
 import {SemanticPackage} from "./semantic-package";
 import {AbstractEntity} from "./abstract-entity";
 import {EntityTemplate} from "./utils/template-processor";
-import {EntityCollection} from "./storage";
+import {EntityCollection} from "./entities-collection";
 
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they

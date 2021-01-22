@@ -2,18 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AbstractEntity = void 0;
 const bluebird_1 = require("bluebird");
-const semantic_package_1 = require("./semantic-package");
 const template_processor_1 = require("./utils/template-processor");
 const storage_1 = require("./storage");
 const logger_1 = require("./utils/logger");
 const logged_exception_1 = require("./utils/logged-exception");
-class AbstractEntity {
+const semantic_artifact_1 = require("./semantic-artifact");
+class AbstractEntity extends semantic_artifact_1.SemanticArtifact {
     constructor(semanticPackage, id) {
-        this.id = id;
-        this._semanticPackageName = semanticPackage.name;
-    }
-    get semanticPackage() {
-        return semantic_package_1.SemanticPackage.findSemanticPackage(this._semanticPackageName);
+        super(semanticPackage, id);
     }
     /**
      * compare entities

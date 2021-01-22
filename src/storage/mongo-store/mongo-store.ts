@@ -1,14 +1,14 @@
 import {Collection as MongoCollection, MongoClient, SessionOptions} from "mongodb";
-import {AbstractStorage, ICollection, IPhysicalCollection, QueryDictionary, StorageSession} from "../storage";
-import {EntityCollection, PredicateCollection} from "../semantic-collections";
+import {AbstractStorage, ICollection, IPhysicalCollection, StorageSession} from "../storage";
 import {EntityDcr} from "../../descriptors";
 import {MongoBasicCollection} from "./mongo-basic-collection";
 import {SemanticPackage} from "../../semantic-package";
+import {EntityCollection} from "../../entities-collection";
+import {PredicateCollection} from "../../predicates-collection";
 
 export class MongoStore extends AbstractStorage {
 
     private collections = {};
-    private queryDictionary: QueryDictionary
     readonly dbClient: MongoClient
 
 
@@ -19,10 +19,6 @@ export class MongoStore extends AbstractStorage {
 
     async connect() {
         return this.dbClient.connect();
-    }
-
-    setQueryDictionary(dictionary: QueryDictionary) {
-        this.queryDictionary = dictionary
     }
 
     async startSession(options?: SessionOptions): Promise<StorageSession> {
@@ -39,7 +35,7 @@ export class MongoStore extends AbstractStorage {
         return await this.dbClient.close()
     }
 
-    async getPhysicalCollection(name: string): Promise<any> {
+    async getPhysicalCollection(name: string): Promise<IPhysicalCollection> {
         return this.dbClient.db().collection(name)
     }
 

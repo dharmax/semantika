@@ -2,8 +2,9 @@ import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences
 
 import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
 import {EntityDcr} from "../descriptors";
-import {EntityCollection, PredicateCollection} from "./semantic-collections";
 import {SemanticPackage} from "../semantic-package";
+import {EntityCollection} from "../entities-collection";
+import {PredicateCollection} from "../predicates-collection";
 
 export type StorageSession = ClientSession
 export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
@@ -59,6 +60,17 @@ export type IPhysicalCollection = any
 
 export abstract class AbstractStorage {
 
+    queryDictionary: QueryDictionary
+
+    createCustomQuery( queryName:string, queryParameters:{[p:string]:any }) {
+        if (!queryName)
+            return null
+        const queryConstructor = this.queryDictionary[queryName]
+        if (!queryConstructor)
+            throw new Error(`No such query constructor ${queryName}`)
+        return queryConstructor(queryParameters)
+    }
+
     abstract makeEntityCollection(physicalCollection: IPhysicalCollection, eDcr: EntityDcr, initFunc: (col: EntityCollection) => void): EntityCollection
 
     abstract makePredicateCollection(semanticPackage: SemanticPackage, physicalCollection: IPhysicalCollection): PredicateCollection
@@ -67,14 +79,11 @@ export abstract class AbstractStorage {
 
     abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<IPhysicalCollection>;
 
-    abstract setQueryDictionary(dictionary: QueryDictionary): void;
-
     abstract startSession(options?: SessionOptions): Promise<StorageSession>;
 
     abstract purgeDatabase(): Promise<any>;
 
     abstract close(): Promise<void>
-
 
 }
 

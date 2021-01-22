@@ -209,8 +209,7 @@ class SemanticPackage {
                     pred.peerEntity = await self.loadEntityById(pred[whichPeer + "Id"], ...fieldProjection);
                 }
             }
-            const result = predicates.map(p => (pagination === null || pagination === void 0 ? void 0 : pagination.entityOnly) ? p.peerEntity : new predicate_1.Predicate(self, p));
-            return result;
+            return predicates.map(p => (pagination === null || pagination === void 0 ? void 0 : pagination.entityOnly) ? p.peerEntity : new predicate_1.Predicate(self, p));
         }
     }
     /**

@@ -8,20 +8,17 @@ import {EntityDcr, PredicateDcr} from "./descriptors";
 import {logger} from "./utils/logger";
 import {LoggedException} from './utils/logged-exception';
 import {Predicate} from "./predicate";
+import {SemanticArtifact} from "./semantic-artifact";
 
-export abstract class AbstractEntity {
+export abstract class AbstractEntity extends SemanticArtifact {
 
     private _version: number
     private _parent: AbstractEntity | string | undefined;
-    private _semanticPackageName: string
 
-    constructor( semanticPackage: SemanticPackage, readonly id) {
-        this._semanticPackageName = semanticPackage.name
+    constructor( semanticPackage: SemanticPackage, id) {
+        super( semanticPackage, id )
     }
 
-    get semanticPackage():SemanticPackage {
-        return SemanticPackage.findSemanticPackage( this._semanticPackageName)
-    }
 
     /**
      * compare entities
