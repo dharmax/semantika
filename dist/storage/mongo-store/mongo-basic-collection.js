@@ -64,9 +64,8 @@ class MongoBasicCollection {
         return this.findOne({ _id }, projection);
     }
     async find(query, options = {}) {
-        var _a;
-        const cursor = this.collection.find(query);
-        (_a = options === null || options === void 0 ? void 0 : options.projection) === null || _a === void 0 ? void 0 : _a.push('_id', '_version');
+        const cursor = this.collection.find(query || {});
+        options.projection && options.projection.push('_id', '_version');
         options.sort && cursor.sort(options.sort);
         options.limit && cursor.batchSize(Math.min(options.batchSize || DEFAULT_BATCH_SIZE, options.limit)).limit(options.limit);
         options.from && cursor.skip(options.from);

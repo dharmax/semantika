@@ -73,8 +73,8 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
     }
 
     async find(query, options: IFindOptions = {}): Promise<Cursor> {
-        const cursor = this.collection.find(query)
-        options?.projection?.push('_id', '_version')
+        const cursor = this.collection.find(query || {})
+        options.projection && options.projection.push('_id', '_version')
         options.sort && cursor.sort(options.sort)
         options.limit && cursor.batchSize(Math.min(options.batchSize || DEFAULT_BATCH_SIZE, options.limit)).limit(options.limit)
         options.from && cursor.skip(options.from)
