@@ -25,7 +25,7 @@ function processTemplate(template, givenFields, superSetAllowed, strict, entityT
             if (validator) {
                 const { error, value } = templateEntry.validate(fv);
                 if (error)
-                    throw new logged_exception_1.LoggedException(`field '${fn}' in entity ${entityType} doesn't match template rules. ${error}`);
+                    throw new logged_exception_1.LoggedException(`field '${fn}' in entity ${entityType} doesn't match template rules. It was ${fv}\n ${error}`);
                 fv = value;
             }
             fields[fn] = fv;
