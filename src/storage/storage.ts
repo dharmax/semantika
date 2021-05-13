@@ -5,6 +5,7 @@ import {EntityDcr} from "../descriptors";
 import {SemanticPackage} from "../semantic-package";
 import {EntityCollection} from "../entities-collection";
 import {PredicateCollection} from "../predicates-collection";
+import {AbstractEntity} from "../abstract-entity";
 
 export type StorageSession = ClientSession
 export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
@@ -34,7 +35,7 @@ export interface ICollection {
 
     count(query, opts?: MongoCountPreferences): Promise<number>;
 
-    findOne<T>(query, projection?: string[]): Promise<T>;
+    findOne<T extends AbstractEntity>(query, projection?: string[]): Promise<T>;
 
     load<T>(opt: IReadOptions, query?: Object): Promise<IReadResult>;
 

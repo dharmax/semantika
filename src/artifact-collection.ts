@@ -2,6 +2,7 @@ import {ICollection, IFindOptions, IPhysicalCollection} from "./storage";
 import {Cursor} from "mongodb";
 import {IReadOptions, IReadResult} from "./types";
 import {SemanticPackage} from "./semantic-package";
+import {AbstractEntity} from "./abstract-entity";
 
 export abstract class ArtifactCollection implements ICollection {
     protected constructor(protected physicalCollection: IPhysicalCollection) {
@@ -50,7 +51,7 @@ export abstract class ArtifactCollection implements ICollection {
         return this.physicalCollection.findGenerator(...arguments)
     }
 
-    findOne<T>(query, projection?: string[]): Promise<T> {
+    findOne<T extends AbstractEntity>(query, projection?: string[]): Promise<T> {
         // @ts-ignore
         return this.physicalCollection.findOne(...arguments)
     }

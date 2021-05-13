@@ -62,9 +62,14 @@ export class EntityCollection extends ArtifactCollection {
         return result
     }
 
-    async findOne<T>(query, projection?: string[]): Promise<T> {
+    async findOne<T extends AbstractEntity>(query, projection?: string[]): Promise<T> {
         const record = await super.findOne(query, projection);
-        return <T><unknown>this.semanticPackage.makeEntity(this.entityDcr, undefined, record)
+        if (!record)
+            return null
+
+        let result:T = this.semanticPackage.makeEntity(this.entityDcr, record['_id'], record)
+
+        return result as T
     }
 
     async* findGenerator(query, options: IFindOptions = {}): AsyncGenerator<AbstractEntity | Object> {
