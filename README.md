@@ -55,8 +55,11 @@ It lets you connect entities with named predicates, for example:
  entities view *Predicates*. It is an instant of a class of your own, which should extend `AbstractEntity`.
  * **Entity Descriptor** provides metadata per entity/entity-type, such as the implementing class, and
  the template (entity fields definition, validation, initializers, if needed...) and optionally things like
- extra index definitions and more.    
- * **Predicate* perdicates are the connection between the nodes (entities) of the graph. You    
+ extra index definitions and more.   
+  * **Predicate** perdicates are the connection between the nodes (entities) of the graph (such as "owns", "likes", etc). You can also place a payload on a predicate instance (e.g. "levelOfLikeness") as well as define special keys to it (for special sort and searches)
+  * **Predicat Descriptor** contains the metadata of a predicate, including its type ("owns", "likes") and its features (payload, keys) and its semantic parent if it has one. 
+  * **Semantic Inheritence** if a predicate descriptor X, for example, is the parent of predicate Y, then a predicate query of X will return also the Ys.    
+     
  
  # Usage
  ## Installation
