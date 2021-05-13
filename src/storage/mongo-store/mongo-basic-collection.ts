@@ -1,7 +1,6 @@
 import {ChangeStream, Collection as MongoCollection, Cursor, IndexOptions, MongoCountPreferences,} from "mongodb";
 import {LoggedException} from "../../utils/logged-exception";
 import {IReadOptions, IReadResult} from "../../types";
-import {props} from "bluebird";
 import {generate} from "short-uuid";
 import {DuplicateKeyError, ICollection, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage";
 import {arrayToProjection} from "../../utils/array-to-projection";
@@ -10,7 +9,6 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
     /**
      * Not to be accessed directly.
-     * @param name
      * @param collection
      */
     constructor(private collection: MongoCollection) {
@@ -99,9 +97,7 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
         // @ts-ignore
         const cursor = await this.find(...arguments)
-        const arrayP = await cursor.toArray()
-
-        let result = arrayP
+        let result = await cursor.toArray()
 
         if (options.filterFunction)
             result = await options.filterFunction(result)
@@ -138,17 +134,19 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
     async load<T>(opt: IReadOptions, query?: Object): Promise<IReadResult> {
 
-        let r = await props({
-            items: (opt ? this.findSome(query, {
+        // it is done that way to let the database do both heavy tasks in parallel
+        let [items, totalFiltered] = [
+            (opt ? this.findSome(query, {
                 limit: opt.count,
                 from: opt.from,
                 projection: opt.projection,
                 sort: opt.sort,
                 filterFunction: opt.filterFunction
             }) : this.findSome(query)),
-            totalFiltered: this.count(query || {}),
-        })
-        return Object.assign(r, {opts: opt, total: -1})
+            this.count(query || {})]
+
+        let [_items, _totalFiltered] = await Promise.all([items, totalFiltered])
+        return Object.assign({items: _items, totalFiltered: _totalFiltered}, {opts: opt, total: -1})
     }
 
     /**

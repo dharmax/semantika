@@ -1,4 +1,3 @@
-import {all} from 'bluebird'
 import {SemanticPackage} from "./semantic-package";
 import {processTemplate} from "./utils/template-processor";
 import {ProjectionItem, ProjectionPredicateItem} from "./projection";
@@ -174,7 +173,7 @@ export abstract class AbstractEntity extends SemanticArtifact {
     async erase() {
         let col = await this.getAssociatedCollection()
         let deleteEntity = col.deleteById(this.id)
-        await all([
+        await Promise.all([
             this.semanticPackage.deleteAllEntityPredicates(this.id),
             deleteEntity
         ])
