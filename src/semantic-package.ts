@@ -37,6 +37,7 @@ export class SemanticPackage {
         this.ontology = new Ontology(this, ontology)
         this.collectionManager = new CollectionManager(this, storage)
         SemanticPackage.semanticPackages[name] = this
+        this.ontology.postProcess()
     }
 
     static findSemanticPackage(name: string): SemanticPackage {

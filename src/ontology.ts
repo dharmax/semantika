@@ -53,7 +53,24 @@ export class Ontology {
     pdcrNames() {
         return Object.keys(this.predicateDcrs)
     }
+
     edcrNames() {
         return Object.keys(this.entityDcrs)
+    }
+
+    postProcess() {
+
+        Object.values(this.predicateDcrs).forEach(async dcr => {
+            if (!dcr.keys)
+                return
+            const col = await this.semanticPackage.predicateCollection(dcr)
+            Object.values(dcr.keys).forEach( entry => {
+                const kArray: string[] = Object.values(entry)
+                kArray.forEach(k => {
+                    col.ensureIndex({sourceId: 1, [k]: 1, targetId: 1})
+                    col.ensureIndex({targetId: 1, [k]: 1, sourceId: 1})
+                })
+            })
+        })
     }
 }

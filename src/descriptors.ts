@@ -19,7 +19,8 @@ export abstract class SemanticPartDescriptor {
     get semanticPackage() {
         return SemanticPackage.findSemanticPackage(this.semanticPackageName)
     }
-    set semanticPackage(sp:SemanticPackage) {
+
+    set semanticPackage(sp: SemanticPackage) {
         this.semanticPackageName = sp.name
     }
 }
@@ -72,11 +73,7 @@ export class PredicateDcr extends SemanticPartDescriptor {
      * @param rules rules for what may be connected by the predicate
      */
     constructor(readonly name: string, public children: PredicateDcr[] = [],
-                readonly keys: { source?: string[], target?: string[], self?: string[] } = {
-                    source: [],
-                    target: [],
-                    self: []
-                }, readonly payload?: EntityTemplate, public rules?: any) {
+                readonly keys: { source?: string[], target?: string[], self?: string[] }, readonly payload?: EntityTemplate, public rules?: any) {
         super()
     }
 }

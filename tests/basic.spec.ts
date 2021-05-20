@@ -98,7 +98,7 @@ class WorkPlace extends AbstractEntity {
     static readonly dcr = new EntityDcr(WorkPlace, WorkPlace.template)
 }
 
-const worksFor = new PredicateDcr('worksFor', [], {}, {
+const worksFor = new PredicateDcr('worksFor', [], {target:['name']}, {
     position: joi.string(),
     start: joi.date(),
     end: joi.date(),
