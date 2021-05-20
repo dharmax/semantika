@@ -73,7 +73,7 @@ export class PredicateDcr extends SemanticPartDescriptor {
      * @param rules rules for what may be connected by the predicate
      */
     constructor(readonly name: string, public children: PredicateDcr[] = [],
-                readonly keys: { source?: string[], target?: string[], self?: string[] }, readonly payload?: EntityTemplate, public rules?: any) {
+                readonly keys?: { source?: string[], target?: string[], self?: string[] }, readonly payload?: EntityTemplate, public rules?: any) {
         super()
     }
 }
