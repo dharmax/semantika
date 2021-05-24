@@ -126,7 +126,7 @@ export class SemanticPackage {
             payload: payload,
             timestamp: Date.now()
         }
-        await addKeys()
+        pDcr.keys && await addKeys()
 
         const pid = <string>await pCol.append(pred)
         pred['id'] = pred._id = pid
