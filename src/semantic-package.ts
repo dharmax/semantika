@@ -3,7 +3,7 @@ import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
 import {Predicate} from "./predicate";
-import {AbstractStorage, ICollection, IPhysicalCollection} from "./storage";
+import {AbstractStorage, DuplicateKeyError, ICollection, IPhysicalCollection} from "./storage";
 import {ID_SEPARATOR} from "./utils/constants";
 import {Ontology} from "./ontology";
 import {processTemplate} from "./utils/template-processor";
@@ -128,9 +128,15 @@ export class SemanticPackage {
         }
         pDcr.keys && await addKeys()
 
-        const pid = <string>await pCol.append(pred)
-        pred['id'] = pred._id = pid
-        return new Predicate(this, pred)
+        try {
+            const pid = <string>await pCol.append(pred)
+            pred['id'] = pred._id = pid
+            return new Predicate(this, pred)
+        } catch (e) {
+            if (e instanceof DuplicateKeyError)
+                throw new DuplicateKeyError(e.col, pDcr.name)
+            throw e
+        }
 
         async function addKeys() {
 

@@ -63,7 +63,7 @@ export abstract class AbstractStorage {
 
     queryDictionary: QueryDictionary
 
-    createCustomQuery( queryName:string, queryParameters:{[p:string]:any }) {
+    createCustomQuery(queryName: string, queryParameters: { [p: string]: any }) {
         if (!queryName)
             return null
         const queryConstructor = this.queryDictionary[queryName]
@@ -89,9 +89,9 @@ export abstract class AbstractStorage {
 }
 
 export class DuplicateKeyError extends Error {
-    constructor(public readonly col: string) {
-        super('duplicate key in collection  ' + col)
-    }   //
+    constructor(public readonly col: string, more?: string) {
+        super(`duplicate key in collection  ${col} ${more || ''}`)
+    }
 }
 
 export interface IFindOptions {
