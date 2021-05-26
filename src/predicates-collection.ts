@@ -8,7 +8,7 @@ export class PredicateCollection extends ArtifactCollection {
 
     constructor(readonly semanticPackage: SemanticPackage, collection: IPhysicalCollection) {
         super(collection)
-        this.ensureIndex({sourceId: 1, predicateName: 1, targetId: 1})
+        this.ensureIndex({sourceId: 1, predicateName: 1, targetId: 1},{unique: true})
         this.ensureIndex({targetId: 1, predicateName: 1, sourceId: 1})
     }
 

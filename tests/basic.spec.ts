@@ -1,5 +1,5 @@
 import * as joi from 'joi'
-import {AbstractEntity, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
+import {AbstractEntity, DuplicateKeyError, EntityDcr, PredicateDcr, SemanticPackage} from '../src';
 import {EntityTemplate} from "../src/utils/template-processor";
 import * as CAP from 'chai-as-promised'
 import * as chai from 'chai'
@@ -49,6 +49,8 @@ describe("Testing Semantika", function () {
         const foundPredicates = await hooli.incomingPreds(worksFor, {projection: ['name']})
 
         expect(foundPredicates.some(p => p.dcr === worksFor)).to.be.true;
+
+        await expect(   sp.createPredicate(george, worksFor, hooli, {position: 'Babysitter'})).to.be.rejectedWith(DuplicateKeyError)
 
 
     })
