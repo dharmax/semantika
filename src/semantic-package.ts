@@ -1,4 +1,4 @@
-import {IRawOntology} from "./raw-ontology";
+import {RawOntology} from "./raw-ontology";
 import {AbstractEntity} from "./abstract-entity";
 import {LoggedException} from "./utils/logged-exception";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types";
@@ -33,7 +33,7 @@ export class SemanticPackage {
      * @param storage the storage for the semantic artifacts
      * @param parents optional parent semantic packages, that this one will extend
      */
-    constructor(readonly name: string, ontology: IRawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
+    constructor(readonly name: string, ontology: RawOntology, readonly storage: AbstractStorage, readonly parents: SemanticPackage[] = []) {
         this.ontology = new Ontology(this, ontology)
         this.collectionManager = new CollectionManager(this, storage)
         SemanticPackage.semanticPackages[name] = this
