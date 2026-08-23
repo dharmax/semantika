@@ -1,5 +1,5 @@
 import {ICollection, IFindOptions, IPhysicalCollection} from "./storage";
-import {Cursor} from "mongodb";
+import {FindCursor as Cursor} from "mongodb";
 import {IReadOptions, IReadResult} from "./types";
 import {SemanticPackage} from "./semantic-package";
 import {AbstractEntity} from "./abstract-entity";

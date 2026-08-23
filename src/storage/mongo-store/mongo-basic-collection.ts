@@ -1,9 +1,9 @@
-import {ChangeStream, Collection as MongoCollection, Cursor, IndexOptions, MongoCountPreferences,} from "mongodb";
-import {LoggedException} from "../../utils/logged-exception";
-import {IReadOptions, IReadResult} from "../../types";
+import {ChangeStream, Collection as MongoCollection, FindCursor as Cursor, CreateIndexesOptions as IndexOptions, CountDocumentsOptions as MongoCountPreferences,} from "mongodb";
+import {LoggedException} from "../../utils/logged-exception.js";
+import {IReadOptions, IReadResult} from "../../types.js";
 import {generate} from "short-uuid";
-import {DuplicateKeyError, ICollection, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage";
-import {arrayToProjection} from "../../utils/array-to-projection";
+import {DuplicateKeyError, ICollection, IFindOptions, IPhysicalCollection, StreamFormats} from "../storage.js";
+import {arrayToProjection} from "../../utils/array-to-projection.js";
 
 export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
@@ -18,7 +18,7 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
         return this.collection.collectionName;
     }
 
-    watch(callback: (change: ChangeStream) => Promise<boolean>, ...args): void {
+    watch(callback: (change: any) => Promise<boolean>, ...args: any[]): void {
 
         const self = this
         // noinspection JSIgnoredPromiseFromCall
@@ -37,7 +37,7 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
     async updateDocumentUnsafe(_id: string, fields: Object) {
         const result = await this.collection.updateOne({
-            _id,
+            _id: _id as any,
         }, {
             $set: fields
         })
@@ -48,11 +48,11 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
 
     async updateDocument(_id: string, fields: Object, version?: number, rawOperations: Object = {}) {
         const result = await this.collection.updateOne({
-            _id,
-            _version: version || fields["_version"]
+            _id: _id as any,
+            _version: (version || fields["_version"]) as any
         }, {
             $set: {...fields, _lastUpdate: new Date()},
-            $inc: {_version: 1},
+            $inc: {_version: 1} as any,
             ...rawOperations
         })
         const success = result.modifiedCount === 1
@@ -61,75 +61,78 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
         // check if there was a version mismatch
         const existing: any = await this.findById(_id)
         if (existing._version != version) {
-            throw new LoggedException(`Optimistic locking exception on collection ${this.name}: ver ${existing._version} instead of ${version}`)
+            throw new LoggedException(`Optimistic locking exception on collection \${this.name}: ver \${existing._version} instead of \${version}`)
         }
-        return result.result
+        return result
     }
 
     async findById<T extends Object>(_id: string, projection?: string[]): Promise<T> {
         return this.findOne({_id}, projection)
     }
 
-    async find(query, options: IFindOptions = {}): Promise<Cursor> {
+    async find(query: any, options: IFindOptions = {}): Promise<Cursor> {
         const cursor = this.collection.find(query || {})
         options.projection && options.projection.push('_id', '_version')
-        options.sort && cursor.sort(options.sort)
-        options.limit && cursor.batchSize(Math.min(options.batchSize || DEFAULT_BATCH_SIZE, options.limit)).limit(options.limit)
+        options.sort && cursor.sort(options.sort as any)
+        if (options.limit) {
+            cursor.limit(options.limit)
+            if (options.batchSize) cursor.batchSize(options.batchSize)
+        }
         options.from && cursor.skip(options.from)
-        arrayToProjection(options.projection, cursor)
+        arrayToProjection(options.projection, cursor as any)
 
-        return cursor
+        return cursor as any
     }
 
-    async* findGenerator(query, options: IFindOptions = {}): AsyncGenerator<Object> {
+    async* findGenerator(query: any, options: IFindOptions = {}): AsyncGenerator<Object> {
         const cursor = await this.find(query, options)
         while (await cursor.hasNext()) {
             const record = await cursor.next()
-            yield record
+            yield record as any
         }
     }
 
-    async distinct(field: string, query, options: IFindOptions = {}): Promise<any> {
+    async distinct(field: string, query: any, _options: IFindOptions = {}): Promise<any> {
         return this.collection.distinct(field, query)
     }
 
-    async findSome<T>(query, options: IFindOptions = {}): Promise<T[]> {
+    async findSome<T>(query: any, options: IFindOptions = {}): Promise<T[]> {
 
         // @ts-ignore
-        const cursor = await this.find(...arguments)
+        const cursor = await this.find(query, options)
         let result = await cursor.toArray()
 
         if (options.filterFunction)
             result = await options.filterFunction(result)
 
-        return result as T[]
+        return result as any[]
     }
 
-    async findSomeStream<T>(query, options: IFindOptions, format = StreamFormats.strings): Promise<Cursor<T>> {
+    async findSomeStream<T>(query: any, options: IFindOptions, format = StreamFormats.strings): Promise<Cursor<T>> {
         // @ts-ignore
-        const cursor = await this.find(...arguments)
+        const cursor = await this.find(query, options)
 
         switch (format) {
             case StreamFormats.records:
-                return cursor.stream()
+                return cursor.stream() as any
             case StreamFormats.strings:
                 return cursor.stream({
-                    transform: rec => JSON.stringify(rec)
-                })
+                    transform: (rec: any) => JSON.stringify(rec) as any
+                }) as any
             default:
                 throw new Error('Stream formant not supported')
         }
     }
 
-    async count(query, opts?: MongoCountPreferences): Promise<number> {
+    async count(query: any, opts?: MongoCountPreferences): Promise<number> {
         return this.collection.countDocuments(query, opts)
     }
 
-    async findOne<T>(query, projection?: string[]): Promise<T> {
+    async findOne<T>(query: any, projection?: string[]): Promise<T> {
 
         if (projection) projection.push('_id', '_version')
         let some = await this.findSome<T>(query, {limit: 1, projection})
-        return some.length ? some[0] : null
+        return some.length ? some[0] : null as any
     }
 
     async load<T>(opt: IReadOptions, query?: Object): Promise<IReadResult> {
@@ -157,9 +160,9 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
         // @ts-ignore
         doc = Object.assign({_id: doc.id || doc._id || this.createId(), '_version': 1, '_created': new Date()}, doc)
         try {
-            const res = await this.collection.insertOne(doc)
+            const res = await this.collection.insertOne(doc as any)
             return res.insertedId.toString()
-        } catch (e) {
+        } catch (e: any) {
             if (e.code === 11000)
                 throw new DuplicateKeyError(this.collection.collectionName)
             throw e
@@ -167,7 +170,7 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
     }
 
     async deleteById(_id: string) {
-        let result = await this.collection.deleteOne({_id})
+        let result = await this.collection.deleteOne({_id: _id as any})
         return result.deletedCount === 1
     }
 
@@ -178,7 +181,7 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
     }
 
     ensureIndex(keys: Object, options?: IndexOptions) {
-        return this.collection.createIndex(keys, options)
+        return this.collection.createIndex(keys as any, options)
     }
 
     async findOneAndModify(criteria: any, change: Object) {
@@ -190,6 +193,3 @@ export class MongoBasicCollection implements IPhysicalCollection, ICollection {
     }
 
 }
-
-
-const DEFAULT_BATCH_SIZE = 100

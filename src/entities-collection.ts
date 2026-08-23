@@ -2,7 +2,7 @@ import {ArtifactCollection} from "./artifact-collection";
 import {EntityDcr} from "./descriptors";
 import {IFindOptions, IPhysicalCollection, StreamFormats} from "./storage";
 import {ID_SEPARATOR} from "./utils/constants";
-import {Cursor} from "mongodb";
+import {FindCursor as Cursor} from "mongodb";
 import {AbstractEntity} from "./abstract-entity";
 import {IReadOptions, IReadResult} from "./types";
 

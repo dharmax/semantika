@@ -1,21 +1,18 @@
-import {ChangeStream, ClientSession, Cursor, IndexOptions, MongoCountPreferences, SessionOptions} from "mongodb"
+import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types.js';
+import {EntityDcr} from "../descriptors.js";
+import {SemanticPackage} from "../semantic-package.js";
+import {EntityCollection} from "../entities-collection.js";
+import {PredicateCollection} from "../predicates-collection.js";
+import {AbstractEntity} from "../abstract-entity.js";
 
-import {FilterFunction, IReadOptions, IReadResult, SortSpec} from '../types'
-import {EntityDcr} from "../descriptors";
-import {SemanticPackage} from "../semantic-package";
-import {EntityCollection} from "../entities-collection";
-import {PredicateCollection} from "../predicates-collection";
-import {AbstractEntity} from "../abstract-entity";
-
-export type StorageSession = ClientSession
-export type QueryDictionary = { [name: string]: (...params: any[]) => Object }
-
-export {Cursor} from 'mongodb'
+export type StorageSession = any;
+export type QueryDictionary = { [name: string]: (...params: any[]) => Object };
+export type Cursor<T = any> = any;
 
 export interface ICollection {
     readonly name: string;
 
-    watch(callback: (change: ChangeStream) => Promise<boolean>, ...args): void;
+    watch(callback: (change: any) => Promise<boolean>, ...args: any[]): void;
 
     updateDocumentUnsafe(_id: string, fields: Object): Promise<boolean>;
 
@@ -23,19 +20,19 @@ export interface ICollection {
 
     findById<T extends Object>(_id: string, projection?: string[]): Promise<T>;
 
-    find(query, options: IFindOptions): Promise<Cursor>;
+    find(query: any, options: IFindOptions): Promise<Cursor>;
 
-    findGenerator(query, options: IFindOptions): AsyncGenerator<Object>;
+    findGenerator(query: any, options: IFindOptions): AsyncGenerator<Object>;
 
-    distinct(field: string, query, options: IFindOptions): Promise<any>;
+    distinct(field: string, query: any, options?: IFindOptions): Promise<any>;
 
-    findSome<T>(query, options: IFindOptions): Promise<T[]>;
+    findSome<T>(query: any, options?: IFindOptions): Promise<T[]>;
 
-    findSomeStream<T>(query, options: IFindOptions, format): Promise<Cursor<T>>;
+    findSomeStream<T>(query: any, options: IFindOptions, format?: StreamFormats): Promise<Cursor<T>>;
 
-    count(query, opts?: MongoCountPreferences): Promise<number>;
+    count(query: any, opts?: any): Promise<number>;
 
-    findOne<T extends AbstractEntity>(query, projection?: string[]): Promise<T>;
+    findOne<T extends AbstractEntity>(query: any, projection?: string[]): Promise<T>;
 
     load<T>(opt: IReadOptions, query?: Object): Promise<IReadResult>;
 
@@ -49,65 +46,71 @@ export interface ICollection {
 
     deleteByQuery(query: any): Promise<any>;
 
-    ensureIndex(keys: Object, options?: IndexOptions): any;
+    ensureIndex(keys: Object, options?: any): any;
 
     findOneAndModify(criteria: any, change: Object): Promise<any>;
 
     createId(): string;
 }
 
-export type IPhysicalCollection = any
-
+export type IPhysicalCollection = any;
 
 export abstract class AbstractStorage {
-
-    queryDictionary: QueryDictionary
+    queryDictionary: QueryDictionary = {};
 
     createCustomQuery(queryName: string, queryParameters: { [p: string]: any }) {
-        if (!queryName)
-            return null
-        const queryConstructor = this.queryDictionary[queryName]
-        if (!queryConstructor)
-            throw new Error(`No such query constructor ${queryName}`)
-        return queryConstructor(queryParameters)
+        if (!queryName) return null;
+        const queryConstructor = this.queryDictionary[queryName];
+        if (!queryConstructor) throw new Error(`No such query constructor ${queryName}`);
+        return queryConstructor(queryParameters);
     }
 
-    abstract makeEntityCollection(physicalCollection: IPhysicalCollection, eDcr: EntityDcr, initFunc: (col: EntityCollection) => void): EntityCollection
+    abstract makeEntityCollection(
+        physicalCollection: IPhysicalCollection,
+        eDcr: EntityDcr,
+        initFunc: (col: EntityCollection) => void
+    ): EntityCollection;
 
-    abstract makePredicateCollection(semanticPackage: SemanticPackage, physicalCollection: IPhysicalCollection): PredicateCollection
+    abstract makePredicateCollection(
+        semanticPackage: SemanticPackage,
+        physicalCollection: IPhysicalCollection
+    ): PredicateCollection;
 
-    abstract makeBasicCollection(physicalCollection: IPhysicalCollection, initFunc?: (col: IPhysicalCollection) => void): IPhysicalCollection
+    abstract makeBasicCollection(
+        physicalCollection: IPhysicalCollection,
+        initFunc?: (col: IPhysicalCollection) => void
+    ): IPhysicalCollection;
 
     abstract getPhysicalCollection(name: string, forPredicates: boolean): Promise<IPhysicalCollection>;
 
-    abstract startSession(options?: SessionOptions): Promise<StorageSession>;
+    abstract startSession(options?: any): Promise<StorageSession>;
 
     abstract purgeDatabase(): Promise<any>;
 
-    abstract close(): Promise<void>
-
+    abstract close(): Promise<void>;
 }
 
 export class DuplicateKeyError extends Error {
     constructor(public readonly col: string, more?: string) {
-        super(`duplicate key in collection  ${col} ${more || ''}`)
+        super(`duplicate key in collection ${col} ${more || ''}`);
+        this.name = 'DuplicateKeyError';
     }
 }
 
 export interface IFindOptions {
-    batchSize?: number
-    limit?: number
-    from?: number
-    projection?: string[]
-    filterFunction?: FilterFunction
-    sort?: SortSpec
-    asDto?: boolean
+    batchSize?: number;
+    limit?: number;
+    from?: number;
+    projection?: string[];
+    filterFunction?: FilterFunction;
+    sort?: SortSpec;
+    asDto?: boolean;
 }
 
+export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', '_parent'];
 
-export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', '_parent']
-
-
-export enum StreamFormats { records, entities, strings}
-
-
+export enum StreamFormats {
+    records,
+    entities,
+    strings
+}

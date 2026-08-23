@@ -117,7 +117,6 @@ out
 .yarn/cache
 .yarn/unplugged
 .yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-
 *.js.map
+dist/
+.idea/

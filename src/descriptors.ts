@@ -1,7 +1,7 @@
-import {SemanticPackage} from "./semantic-package";
-import {AbstractEntity} from "./abstract-entity";
-import {EntityTemplate} from "./utils/template-processor";
-import {EntityCollection} from "./entities-collection";
+import {SemanticPackage} from "./semantic-package.js";
+import {AbstractEntity} from "./abstract-entity.js";
+import {EntityTemplate} from "./utils/template-processor.js";
+import {EntityCollection} from "./entities-collection.js";
 
 /**
  * This is the abstract parent of all descriptors. Descriptors are the ontology of your model and as ontologies go, they
@@ -11,22 +11,24 @@ import {EntityCollection} from "./entities-collection";
  */
 export abstract class SemanticPartDescriptor {
     protected semanticPackageName: string;
-    _parents: SemanticPartDescriptor[] = []
+    _parents: SemanticPartDescriptor[] = [];
 
     // an optionally alternative collection name. By default, the name is automatically determined according to the type
     collectionName: string;
 
     get semanticPackage() {
-        return SemanticPackage.findSemanticPackage(this.semanticPackageName)
+        return SemanticPackage.findSemanticPackage(this.semanticPackageName);
     }
 
     set semanticPackage(sp: SemanticPackage) {
-        this.semanticPackageName = sp.name
+        this.semanticPackageName = sp.name;
     }
+
+    abstract toJSON(): any;
 }
 
 /**
- * Holds meta-data for an entity-type and semantically defines it. Usually, a entity type is represented by its own JS
+ * Holds meta-data for an entity-type and semantically defines it. Usually, an entity type is represented by its own JS
  * class but theoretically one JS class may represent more than one entity type, but they must have separate descriptors.
  */
 export class EntityDcr extends SemanticPartDescriptor {
@@ -49,7 +51,16 @@ export class EntityDcr extends SemanticPartDescriptor {
     }
 
     get parents() {
-        return this._parents as EntityDcr[]
+        return this._parents as EntityDcr[];
+    }
+
+    toJSON() {
+        return {
+            name: this.name,
+            collectionName: this.collectionName || this.name,
+            fields: this.template ? Object.keys(this.template) : [],
+            parents: this.parents ? this.parents.map(p => p.name) : []
+        };
     }
 }
 
@@ -58,22 +69,36 @@ export class EntityDcr extends SemanticPartDescriptor {
  * the relevant business logic.
  */
 export class PredicateDcr extends SemanticPartDescriptor {
-
     get parents() {
         // @ts-ignore
-        return this._parents as PredicateDcr[]
+        return this._parents as PredicateDcr[];
     }
 
     /**
-     *
      * @param name the meaningful name of these predicates
      * @param children sub-predicates
      * @param keys optional extra keys (indexed)
      * @param payload template for user payload
      * @param rules rules for what may be connected by the predicate
      */
-    constructor(readonly name: string, public children: PredicateDcr[] = [],
-                readonly keys?: { source?: string[], target?: string[], self?: string[] }, readonly payload?: EntityTemplate, public rules?: any) {
-        super()
+    constructor(
+        readonly name: string,
+        public children: PredicateDcr[] = [],
+        readonly keys?: { source?: string[]; target?: string[]; self?: string[] },
+        readonly payload?: EntityTemplate,
+        public rules?: any
+    ) {
+        super();
+    }
+
+    toJSON() {
+        return {
+            name: this.name,
+            collectionName: this.collectionName,
+            children: this.children ? this.children.map(c => c.name) : [],
+            parents: this.parents ? this.parents.map(p => p.name) : [],
+            keys: this.keys,
+            payloadFields: this.payload ? Object.keys(this.payload) : []
+        };
     }
 }

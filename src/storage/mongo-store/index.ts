@@ -1,2 +1,2 @@
-export * from "./mongo-store";
-export * from "./mongo-basic-collection";
+export * from "./mongo-basic-collection.js";
+export * from "./mongo-store.js";

@@ -1,23 +1,16 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
-    "target": "ES2019",
-    "moduleResolution": "Node",
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "node",
     "sourceMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "lib": ["ESNext"]
   },
-  "include": [
-    "index.ts",
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "**/*.spec.ts"
-  ],
-  "lib": [
-    "ES2019"
-  ],
-  "declaration": true,
-  "emitDecoratorMetadata": true,
-  "experimentalDecorators": true,
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
 }
