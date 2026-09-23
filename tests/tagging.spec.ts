@@ -432,6 +432,50 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         const doc2 = await sp.createEntity<Document>(Document.dcr, { title: 'Conflict Doc' });
         await expect(doc2.tag('tag-active', 'tag-inactive')).rejects.toThrow("Antonym conflict");
     });
+
+    it("should provide seamless ergonomics for both singular and set definitions (parent, antonym, synonym)", async () => {
+        // Singular options
+        const backend = sp.tags.tag('backend-singular');
+        const db = sp.tags.tag('db-singular', {
+            parent: 'backend-singular',
+            antonym: 'frontend-singular',
+            synonym: 'datastore'
+        });
+
+        expect(db.parent).toBe(backend);
+        expect(db.parents.has(backend)).toBe(true);
+        expect(db.antonym?.name).toBe('frontend-singular');
+        expect(db.antonyms.size).toBe(1);
+        expect(db.synonym).toBe('datastore');
+        expect(db.hasSynonym('datastore')).toBe(true);
+
+        // Dynamic property setter
+        const cloud = sp.tags.tag('cloud-singular');
+        db.parent = cloud;
+        expect(db.parent).toBe(cloud);
+        expect(db.parents.has(cloud)).toBe(true);
+        expect(db.parents.has(backend)).toBe(false);
+
+        // Multiple parents (set) coexist cleanly with singular getter
+        db.addParent(backend);
+        expect(db.parents.size).toBe(2);
+        expect(db.parents.has(cloud)).toBe(true);
+        expect(db.parents.has(backend)).toBe(true);
+        expect(db.parent).toBeDefined();
+
+        // Antonym setter
+        const client = sp.tags.tag('client-singular');
+        db.antonym = client;
+        expect(db.antonym).toBe(client);
+        expect(db.isAntonymOf(client)).toBe(true);
+        expect(db.isAntonymOf('frontend-singular')).toBe(false);
+
+        // Synonym setter
+        db.synonym = 'storage-engine';
+        expect(db.synonym).toBe('storage-engine');
+        expect(db.hasSynonym('storage-engine')).toBe(true);
+    });
 });
+
 
 

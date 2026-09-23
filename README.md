@@ -253,7 +253,32 @@ doc.hasTag('machine intelligence'); // true
 doc.hasTag('intelligence artificielle'); // true
 ```
 
-### 6. Tag Exposition Functions
+### 6. Ergonomic Fluidity: Single or a Set? Both!
+Semantika enforces **zero ceremonial clutter**. You can define and access relationships as single values or sets:
+```ts
+// Define with convenient singular properties...
+const db = sp.tags.tag('db', {
+    parent: 'backend',
+    antonym: 'frontend',
+    synonym: 'datastore'
+});
+
+// ...or full sets for DAG multi-inheritance and multilingual synonyms
+const ts = sp.tags.tag('typescript', {
+    parents: ['javascript', 'compiled-language'],
+    antonyms: ['untyped'],
+    synonyms: { en: ['ts'], fr: ['ts'] }
+});
+
+// Dynamic property getters and setters
+db.parent;          // Tag { backend }
+db.parent = cloud;  // Replaces primary parent
+db.addParent(api);  // Multi-parent DAG
+db.parents;         // Set { cloud, api }
+db.antonym;         // Tag { frontend }
+```
+
+### 7. Tag Exposition Functions
 Navigate from a tag directly to tagged entities, predicates, and artifacts:
 ```ts
 const dbTag = sp.tags.tag('database');
@@ -265,7 +290,7 @@ const entities = await dbTag.entities({ includeDescendants: true });
 const count = await dbTag.count({ includeDescendants: true });
 ```
 
-### 7. Pluggable Vector DB Adapter & Semantic Search
+### 8. Pluggable Vector DB Adapter & Semantic Search
 Connect any vector database (Qdrant, Chroma, Pinecone, pgvector) using the Service Adapter Pattern, or use the built-in `InMemoryVectorStore`:
 ```ts
 import { InMemoryVectorStore } from '@dharmax/semantika';
