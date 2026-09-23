@@ -13,6 +13,9 @@ import {Mutex} from "./utils/mutex.js";
 import {ArtifactCollection} from "./artifact-collection.js";
 import {EntityCollection} from "./entities-collection.js";
 import {IPredicateRecord, PredicateCollection} from "./predicates-collection.js";
+import {Tag, TagTaxonomy, TagOptions} from "./tag.js";
+import {evaluateTagQuery, TagQueryExpression} from "./tag-query.js";
+import {IVectorStore, IEmbeddingProvider} from "./vector-store.js";
 
 /**
  * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
@@ -21,6 +24,9 @@ import {IPredicateRecord, PredicateCollection} from "./predicates-collection.js"
  */
 export class SemanticPackage {
     readonly ontology: Ontology;
+    readonly tags: TagTaxonomy;
+    vectorStore?: IVectorStore;
+    embeddingProvider?: IEmbeddingProvider;
     private collectionManager: CollectionManager;
     static semanticPackages: { [name: string]: SemanticPackage } = {};
 
@@ -37,6 +43,7 @@ export class SemanticPackage {
         readonly parents: SemanticPackage[] = []
     ) {
         this.ontology = new Ontology(this, ontology);
+        this.tags = new TagTaxonomy(this);
         this.collectionManager = new CollectionManager(this, storage);
         SemanticPackage.semanticPackages[name] = this;
         this.ontology.postProcess();
@@ -66,6 +73,9 @@ export class SemanticPackage {
         let e = new eDcr.clazz(this, id);
         if (record) {
             Object.assign(e, { id, _version: record._version || 1 }, record);
+            if (record._tags && Array.isArray(record._tags)) {
+                e._tags = [...record._tags];
+            }
         } else {
             Object.assign(e, { id, _version: 1 });
         }
@@ -116,7 +126,8 @@ export class SemanticPackage {
         pDcr: PredicateDcr,
         target: AbstractEntity,
         payload?: Object,
-        selfKeys: Record<string, any> = {}
+        selfKeys: Record<string, any> = {},
+        tags?: (string | Tag)[]
     ): Promise<Predicate> {
         const pCol: PredicateCollection = await this.predicateCollection(pDcr);
         const pred: IPredicateRecord = {
@@ -128,6 +139,9 @@ export class SemanticPackage {
             payload: payload,
             timestamp: Date.now()
         };
+        if (tags && tags.length > 0) {
+            pred._tags = tags.map(t => (typeof t === "string" ? t : t.name));
+        }
         pDcr.keys && (await addKeys());
 
         try {
@@ -220,6 +234,17 @@ export class SemanticPackage {
         const fieldProjection = ((pagination && pagination.projection) || []).concat(opts.projection || []);
         pagination && delete pagination.projection;
 
+        if (opts.tagQuery && pagination) {
+            const originalFilter = pagination.filterFunction;
+            pagination.filterFunction = async (items: any[]) => {
+                if (originalFilter) items = await originalFilter(items);
+                return items.filter(p => {
+                    const itemTags = new Set<string>(p._tags || []);
+                    return evaluateTagQuery(itemTags, opts.tagQuery!, opts.expandTaxonomy ? self.tags : undefined);
+                });
+            };
+        }
+
         if (pagination) {
             let rr: IReadResult = await pCol.load(pagination, query);
             rr.items = await enrich(<IPredicateRecord[]>rr.items);
@@ -230,6 +255,12 @@ export class SemanticPackage {
         }
 
         async function enrich(predicates: IPredicateRecord[]) {
+            if (opts.tagQuery) {
+                predicates = predicates.filter(p => {
+                    const itemTags = new Set<string>(p._tags || []);
+                    return evaluateTagQuery(itemTags, opts.tagQuery!, opts.expandTaxonomy ? self.tags : undefined);
+                });
+            }
             if (opts.projection || opts.peerType) {
                 for (let p of predicates) {
                     const peerType = p[whichPeer + "Type"];
@@ -274,10 +305,15 @@ export class SemanticPackage {
         eDcr: EntityDcr,
         fields: Object,
         superSetAllowed = false,
-        cutExtraFields = true
+        cutExtraFields = true,
+        tags?: (string | Tag)[]
     ): Promise<T> {
+        const rawTags = tags || (fields as any)?._tags;
         fields = processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
-        const record = fields;
+        const record = { ...fields } as any;
+        if (rawTags && Array.isArray(rawTags)) {
+            record._tags = rawTags.map(t => (typeof t === "string" ? t : t.name));
+        }
         const col = await this.collectionForEntityType(eDcr);
         let id = await col.append(record);
         return <T>this.makeEntity(eDcr, id, record);
@@ -364,6 +400,116 @@ export class SemanticPackage {
         }
 
         return { entities, predicates };
+    }
+
+    setVectorStore(store: IVectorStore): this {
+        this.vectorStore = store;
+        return this;
+    }
+
+    setEmbeddingProvider(provider: IEmbeddingProvider): this {
+        this.embeddingProvider = provider;
+        return this;
+    }
+
+    async indexTagVector(tag: Tag | string, vector?: number[]): Promise<void> {
+        if (!this.vectorStore) return;
+        const tagObj = typeof tag === "string" ? this.tags.tag(tag) : tag;
+        let vec = vector || tagObj.embedding;
+        if (!vec && this.embeddingProvider) {
+            vec = await this.embeddingProvider.embed(
+                tagObj.name + (tagObj.description ? `: ${tagObj.description}` : "")
+            );
+            tagObj.embedding = vec;
+        }
+        if (vec) {
+            await this.vectorStore.upsert(tagObj.name, vec, {
+                name: tagObj.name,
+                description: tagObj.description,
+                parents: Array.from(tagObj.parents).map(p => p.name)
+            });
+        }
+    }
+
+    async findSimilarTags(
+        tag: Tag | string,
+        options: { limit?: number; minScore?: number } = {}
+    ): Promise<Array<{ tag: Tag; score: number }>> {
+        if (!this.vectorStore) return [];
+        const tagObj = typeof tag === "string" ? this.tags.tag(tag) : tag;
+        let queryVec = tagObj.embedding;
+        if (!queryVec && this.embeddingProvider) {
+            queryVec = await this.embeddingProvider.embed(tagObj.name);
+        }
+        if (!queryVec) return [];
+
+        const requestedLimit = options.limit ?? 10;
+        const queryOptions = {
+            ...options,
+            limit: requestedLimit + 1
+        };
+        const hits = await this.vectorStore.query(queryVec, queryOptions);
+        return hits
+            .filter(h => h.id !== tagObj.name)
+            .slice(0, requestedLimit)
+            .map(h => ({
+                tag: this.tags.tag(h.id),
+                score: h.score
+            }));
+    }
+
+    async findEntitiesByTag<T extends AbstractEntity = AbstractEntity>(
+        tag: Tag | string,
+        options: { includeDescendants?: boolean; entityType?: string } = {}
+    ): Promise<T[]> {
+        const tagName = typeof tag === "string" ? tag : tag.name;
+        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
+        const targetTags = new Set<string>([tagName]);
+        if (options.includeDescendants && tagObj) {
+            for (const d of tagObj.descendants) targetTags.add(d.name);
+        }
+
+        const eDcrs = options.entityType
+            ? [this.ontology.edcr(options.entityType)].filter(Boolean)
+            : this.ontology.allEntityDcrs;
+
+        const query = { _tags: { $in: Array.from(targetTags) } };
+        const results: T[] = [];
+        for (const eDcr of eDcrs) {
+            const col = await this.collectionForEntityType(eDcr);
+            const found = await col.findSome<any>(query);
+            for (const item of found) {
+                results.push(this.makeEntity<T>(eDcr, item._id || item.id, item));
+            }
+        }
+        return results;
+    }
+
+    async findPredicatesByTag(
+        tag: Tag | string,
+        options: { includeDescendants?: boolean; predicateName?: string } = {}
+    ): Promise<Predicate[]> {
+        const tagName = typeof tag === "string" ? tag : tag.name;
+        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
+        const targetTags = new Set<string>([tagName]);
+        if (options.includeDescendants && tagObj) {
+            for (const d of tagObj.descendants) targetTags.add(d.name);
+        }
+
+        const pDcrs = options.predicateName
+            ? [this.ontology.pdcr(options.predicateName)].filter(Boolean)
+            : this.ontology.allPredicateDcrs;
+
+        const query = { _tags: { $in: Array.from(targetTags) } };
+        const results: Predicate[] = [];
+        for (const pDcr of pDcrs) {
+            const pCol = await this.predicateCollection(pDcr);
+            const found = await pCol.findSome<IPredicateRecord>(query);
+            for (const item of found) {
+                results.push(new Predicate(this, item));
+            }
+        }
+        return results;
     }
 }
 

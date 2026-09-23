@@ -57,6 +57,10 @@ export abstract class AbstractEntity extends SemanticArtifact {
         return this.semanticPackage.collectionForEntityType(this.descriptor)
     }
 
+    async getCollection() {
+        return this.getAssociatedCollection()
+    }
+
     /**
      * Updates the specific fields-values of this entity in the memory and the database. Uses optimistic locking.
      * @param fieldsToUpdate the object with the field to change and their new values
@@ -151,6 +155,9 @@ export abstract class AbstractEntity extends SemanticArtifact {
         if (!fields)
             return null
         Object.assign(this, fields)
+        if ((fields as any)._tags && Array.isArray((fields as any)._tags)) {
+            this._tags = [...(fields as any)._tags];
+        }
         await this.populateRelated(predicateProjections)
 
         // @ts-ignore

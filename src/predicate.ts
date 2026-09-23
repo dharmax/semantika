@@ -56,8 +56,12 @@ export class Predicate extends SemanticArtifact implements IPredicateRecord {
         return this.targetEntity
     }
 
+    async getCollection(): Promise<PredicateCollection> {
+        return this.semanticPackage.predicateCollection(this.dcr);
+    }
+
     async change(fields) {
-        let pCol: PredicateCollection = await this.semanticPackage.predicateCollection(this.dcr)
+        let pCol: PredicateCollection = await this.getCollection()
         return pCol.updateDocument(this._id, fields, this._version)
     }
 

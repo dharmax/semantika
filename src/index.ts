@@ -11,3 +11,6 @@ export {ArtifactCollection} from "./artifact-collection.js";
 export {EntityCollection} from "./entities-collection.js";
 export type {IPredicateRecord} from "./predicates-collection.js";
 export {PredicateCollection} from "./predicates-collection.js";
+export * from "./tag.js";
+export * from "./tag-query.js";
+export * from "./vector-store.js";

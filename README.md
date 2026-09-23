@@ -142,6 +142,108 @@ class Task extends AbstractEntity {
 
 ---
 
+## 🏷️ Tagging, Boolean Query Engine & Neuro-Symbolic Taxonomy
+
+Semantika features a native, clutter-free tagging subsystem with multi-parent DAG taxonomy and pluggable vector search.
+
+### 1. Tagging Entities and Predicates
+Both `AbstractEntity` and `Predicate` inherit native tagging from `SemanticArtifact`:
+```ts
+// Tag during creation
+const doc = await sp.createEntity(Document.dcr, { title: 'Whitepaper' }, false, true, ['ai', 'research']);
+const edge = await sp.createPredicate(svc1, dependsOn, svc2, {}, {}, ['rpc', 'critical']);
+
+// Dynamic tag / untag (persists to DB automatically)
+await doc.tag('production', 'verified');
+await doc.untag('research');
+
+// Check tags
+doc.hasTag('ai'); // true
+doc.tagList;       // ['ai', 'production', 'verified']
+doc.tags;          // Set { 'ai', 'production', 'verified' }
+```
+
+### 2. Boolean Tag Query Engine (`AND`, `OR`, `XOR`, `NOT`)
+Filter artifacts using expressive, composable boolean expressions:
+```ts
+// Evaluate on loaded artifacts
+doc.matchesTagQuery({
+    and: [
+        'ai',
+        { or: ['production', 'staging'] },
+        { not: 'deprecated' },
+        { xor: ['public', 'private'] } // Strict 1-of-N mutual exclusion
+    ]
+});
+
+// Query incoming / outgoing predicates filtered by tag query
+const criticalEdges = await svc.outgoingPreds(dependsOn, {
+    tagQuery: { and: ['critical', { not: 'deprecated' }] }
+});
+```
+
+### 3. Neuro-Symbolic Multi-Parent DAG Taxonomy
+Taxonomies are directed acyclic graphs (DAGs) supporting multiple parents (e.g. `sqlite` is both `sql` and `embedded`):
+```ts
+// Declarative loading
+sp.tags.loadTaxonomy({
+    tech: {
+        backend: {
+            database: {
+                sql: { sqlite: {}, postgres: {} },
+                nosql: { mongo: {} }
+            }
+        },
+        storage: {}
+    }
+});
+
+// Connect additional parent (Multi-parent DAG)
+sp.tags.tag('database').addParent(sp.tags.tag('storage'));
+
+const sqlite = sp.tags.tag('sqlite');
+sqlite.ancestors; // Set: sql, database, backend, storage, tech
+sqlite.isDescendantOf('storage'); // true!
+sqlite.isDescendantOf('nosql');   // false
+
+// Subsumption: Queries with expandTaxonomy automatically include descendant tags
+doc.hasTag('database', { expandTaxonomy: true }); // true even if tagged only with 'sqlite'!
+```
+
+### 4. Tag Exposition Functions
+Navigate from a tag directly to tagged entities, predicates, and artifacts:
+```ts
+const dbTag = sp.tags.tag('database');
+
+// Find all entities tagged with 'database' (optionally including descendants like sqlite, postgres)
+const entities = await dbTag.entities({ includeDescendants: true });
+
+// Count total artifacts
+const count = await dbTag.count({ includeDescendants: true });
+```
+
+### 5. Pluggable Vector DB Adapter & Semantic Search
+Connect any vector database (Qdrant, Chroma, Pinecone, pgvector) using the Service Adapter Pattern, or use the built-in `InMemoryVectorStore`:
+```ts
+import { InMemoryVectorStore } from '@dharmax/semantika';
+
+// Attach vector store
+const vectorStore = new InMemoryVectorStore();
+sp.setVectorStore(vectorStore);
+
+// Index tag embeddings
+const tMl = sp.tags.tag('machine-learning', { embedding: [0.9, 0.8, 0.1] });
+const tNlp = sp.tags.tag('nlp', { embedding: [0.85, 0.85, 0.15] });
+await sp.indexTagVector(tMl);
+await sp.indexTagVector(tNlp);
+
+// Find semantically similar tags
+const similar = await tMl.similar();
+// Output: [ { tag: Tag('nlp'), score: 0.99 } ]
+```
+
+---
+
 ## 🤖 AI & Agentic Integration (LLM Context & Studio Tooling)
 
 ### 1. Machine-Readable Ontology Introspection
@@ -195,13 +297,24 @@ import { MongoStore } from '@dharmax/semantika/mongo';
 - `entity.p.o(...)` / `entity.p.i(...)` (Shorthand graph navigation)
 - `entity.getFieldRecursive(fieldName, accumulate)` (Deep hierarchical property inheritance)
 - `entity.drill(inDepth, outDepth)` (Recursive connection graph population)
-- `entity.erase()` (Cascading atomic deletion of entity and connected predicates)
+### Tag & Artifact Tagging DSL (`SemanticArtifact` & `Tag`)
+- `artifact.tag(...tags)` / `artifact.untag(...tags)` (Attach / detach tags with DB persistence)
+- `artifact.hasTag(tag, { expandTaxonomy? })` (Exact match or taxonomy subsumption)
+- `artifact.matchesTagQuery(query, { expandTaxonomy? })` (Boolean evaluation: `and`, `or`, `xor`, `not`)
+- `artifact.tags` (`Set<string>`) / `artifact.tagList` (`string[]`)
+- `tag.parents` / `tag.children` / `tag.ancestors` / `tag.descendants`
+- `tag.addParent(parent)` / `tag.removeParent(parent)` (DAG management with cycle detection)
+- `tag.isDescendantOf(tag)` / `tag.isAncestorOf(tag)`
+- `tag.entities(opts)` / `tag.predicates(opts)` / `tag.artifacts(opts)` / `tag.count(opts)`
+- `tag.similar(opts)` (Vector search)
+- `sp.setVectorStore(store)` / `sp.indexTagVector(tag)` / `sp.findSimilarTags(tag)`
 
 ### Package DSL (`SemanticPackage`)
-- `sp.createEntity(eDcr, fields)`
-- `sp.createPredicate(source, pDcr, target, payload?, selfKeys?)`
+- `sp.createEntity(eDcr, fields, superSetAllowed?, cutExtraFields?, tags?)`
+- `sp.createPredicate(source, pDcr, target, payload?, selfKeys?, tags?)`
 - `sp.loadEntity(id, eDcr?, ...projection)`
 - `sp.loadEntityById(id, ...projection)`
+- `sp.findEntitiesByTag(tag, opts)` / `sp.findPredicatesByTag(tag, opts)`
 - `sp.predicatesBetween(source, target, bidirectional?, predicateName?)`
 - `sp.traverse(startId, { maxDepth, predicateTypes, direction, limit })`
 

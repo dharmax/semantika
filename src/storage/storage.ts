@@ -97,6 +97,8 @@ export class DuplicateKeyError extends Error {
     }
 }
 
+import type {TagQueryExpression} from '../tag-query.js';
+
 export interface IFindOptions {
     batchSize?: number;
     limit?: number;
@@ -105,9 +107,11 @@ export interface IFindOptions {
     filterFunction?: FilterFunction;
     sort?: SortSpec;
     asDto?: boolean;
+    tagQuery?: TagQueryExpression;
+    expandTaxonomy?: boolean;
 }
 
-export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', '_parent'];
+export const StandardFields: string[] = ['_created', '_lastUpdate', '_version', '_parent', '_tags'];
 
 export enum StreamFormats {
     records,

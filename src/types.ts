@@ -1,4 +1,6 @@
 
+import type {TagQueryExpression} from "./tag-query.js";
+
 export interface IReadOptions {
     from: number
     count: number
@@ -14,6 +16,8 @@ export interface IReadOptions {
     projection?: string[]
     /** if true return the entities as DTOs, otherwise as entity objects */
     requestNumber?: number // created automatically
+    tagQuery?: TagQueryExpression
+    expandTaxonomy?: boolean
 }
 
 
@@ -41,5 +45,7 @@ export interface IFindPredicatesOptions {
     projection?: string[],
     /** if true return the entities as DTOs, otherwise as entity objects */
     asDto?: boolean
+    tagQuery?: TagQueryExpression
+    expandTaxonomy?: boolean
 }
 

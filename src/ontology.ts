@@ -65,6 +65,14 @@ export class Ontology {
         return Object.keys(this.entityDcrs);
     }
 
+    get allEntityDcrs(): EntityDcr[] {
+        return Object.values(this.entityDcrs);
+    }
+
+    get allPredicateDcrs(): PredicateDcr[] {
+        return Object.values(this.predicateDcrs);
+    }
+
     toJSON() {
         return {
             packageName: this.semanticPackage.name,

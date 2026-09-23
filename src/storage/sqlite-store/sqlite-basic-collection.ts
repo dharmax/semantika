@@ -105,6 +105,29 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
         const isCoreColumn = ["_id", "_version", "_created", "_lastUpdate"].includes(key);
         const colExpr = isCoreColumn ? `"${key}"` : `json_extract(data, '$.' || '${key}')`;
 
+        if (key === "_tags" || key === "tags") {
+            if (typeof val === "string") {
+                params.push(val);
+                return `EXISTS (SELECT 1 FROM json_each(data, '$._tags') WHERE value = ?)`;
+            }
+            if (val && typeof val === "object") {
+                if ("$in" in val && Array.isArray(val.$in)) {
+                    if (val.$in.length === 0) return "1 = 0";
+                    const placeholders = val.$in.map(() => "?").join(", ");
+                    params.push(...val.$in);
+                    return `EXISTS (SELECT 1 FROM json_each(data, '$._tags') WHERE value IN (${placeholders}))`;
+                }
+                if ("$all" in val && Array.isArray(val.$all)) {
+                    if (val.$all.length === 0) return "1 = 1";
+                    const clauses = val.$all.map((item: any) => {
+                        params.push(item);
+                        return `EXISTS (SELECT 1 FROM json_each(data, '$._tags') WHERE value = ?)`;
+                    });
+                    return `(${clauses.join(" AND ")})`;
+                }
+            }
+        }
+
         if (val && typeof val === "object" && "$in" in val && Array.isArray(val.$in)) {
             if (val.$in.length === 0) return "1 = 0";
             const placeholders = val.$in.map(() => "?").join(", ");
