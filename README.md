@@ -9,36 +9,6 @@
 
 **Semantika** is a lightweight, zero-bloat semantic graph abstraction layer in TypeScript. It bridges the gap between relational/document databases (SQLite, PostgreSQL JSONB, MongoDB) and knowledge graphs—giving you **typed graph nodes (`AbstractEntity`)**, **first-class semantic edges (`Predicate`)**, **hierarchical ontology inheritance**, **peer-key query optimization**, and **schema validation** without the operational complexity or cost of dedicated graph databases (Neo4j, ArangoDB).
 
----
-
-## 🏛️ Visual Architecture
-
-```mermaid
-flowchart TD
-    subgraph Clients ["Client Layer"]
-        Human["Human Developer\n(Type-Safe Graph DSL)"]
-        AI["AI / LLM Agent\n(Ontology JSON, Graph-RAG Traversal)"]
-        Studio["Visual Studio / Canvas\n(ASG Outliner, Schema Inspector)"]
-    end
-
-    subgraph Core ["@dharmax/semantika Engine"]
-        SP["SemanticPackage\n(Scope, IDs, Traversal Orchestrator)"]
-        ONT["Ontology\n(EntityDcr, PredicateDcr, Semantic Inheritance)"]
-        ENT["AbstractEntity\n(Optimistic Locking, Deep Props, Hierarchy)"]
-        PRED["Predicate\n(Mirrored Peer Keys, Payloads)"]
-    end
-
-    subgraph Stores ["Pluggable Storage Adapters"]
-        SQLITE["SqliteStore\n(Embedded, Zero-Setup, Bun / Node)"]
-        PG["PostgresStore\n(JSONB, GIN Indexing, Enterprise)"]
-        MONGO["MongoStore\n(BSON, Change Streams, Distributed)"]
-    end
-
-    Clients --> Core
-    Core --> Stores
-```
-
----
 
 ## 📦 Installation & Driver Matrix
 
