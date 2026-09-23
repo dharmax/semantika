@@ -65,6 +65,7 @@ function checkTag(name: string, tagSet: Set<string>, taxonomy?: TagTaxonomy): bo
     if (taxonomy) {
         const tag = taxonomy.get(name);
         if (tag) {
+            if (tagSet.has(tag.name)) return true;
             for (const child of tag.descendants) {
                 if (tagSet.has(child.name)) return true;
             }

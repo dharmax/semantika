@@ -8,19 +8,31 @@ export interface TagOptions {
     metadata?: Record<string, any>;
     embedding?: number[];
     parents?: (Tag | string)[];
+    abstract?: boolean;
+    exclusive?: boolean;
+    displayName?: string | Record<string, string>;
+    synonyms?: Record<string, string[]> | string[];
+    antonyms?: (Tag | string)[];
 }
 
 /**
- * First-class Tag representation supporting DAG taxonomy, artifact navigation, and vector search.
+ * First-class Tag representation supporting DAG taxonomy, multi-language synonyms,
+ * antonyms, abstract tags, exclusive groups, artifact navigation, and vector search.
  */
 export class Tag {
     readonly name: string;
     description?: string;
     metadata?: Record<string, any>;
     embedding?: number[];
+    abstract: boolean = false;
+    exclusive: boolean = false;
+
+    displayNames: Record<string, string> = {};
+    synonyms: Record<string, Set<string>> = {};
 
     readonly parents = new Set<Tag>();
     readonly children = new Set<Tag>();
+    readonly antonyms = new Set<Tag>();
 
     constructor(
         readonly semanticPackage: SemanticPackage,
@@ -31,10 +43,112 @@ export class Tag {
         this.description = options.description;
         this.metadata = options.metadata;
         this.embedding = options.embedding;
+        this.abstract = options.abstract ?? false;
+        this.exclusive = options.exclusive ?? false;
+
+        if (options.displayName) {
+            if (typeof options.displayName === "string") {
+                this.displayNames["en"] = options.displayName;
+            } else {
+                this.displayNames = { ...options.displayName };
+            }
+        }
+
+        if (options.synonyms) {
+            if (Array.isArray(options.synonyms)) {
+                this.synonyms["en"] = new Set(options.synonyms);
+            } else {
+                for (const [lang, syns] of Object.entries(options.synonyms)) {
+                    this.synonyms[lang] = new Set(syns);
+                }
+            }
+        }
     }
 
     get id(): string {
         return this.name;
+    }
+
+    /**
+     * Default display name in English, or the first configured display name, or the canonical tag name.
+     */
+    get displayName(): string {
+        return this.displayNames["en"] || Object.values(this.displayNames)[0] || this.name;
+    }
+
+    getDisplayName(lang = "en"): string {
+        return this.displayNames[lang] || this.displayName;
+    }
+
+    setDisplayName(name: string, lang = "en"): this {
+        this.displayNames[lang] = name;
+        return this;
+    }
+
+    addSynonym(synonym: string, lang = "en"): this {
+        if (!this.synonyms[lang]) {
+            this.synonyms[lang] = new Set();
+        }
+        this.synonyms[lang].add(synonym);
+        return this;
+    }
+
+    removeSynonym(synonym: string, lang = "en"): this {
+        this.synonyms[lang]?.delete(synonym);
+        return this;
+    }
+
+    getSynonyms(lang = "en"): string[] {
+        return Array.from(this.synonyms[lang] || []);
+    }
+
+    hasSynonym(synonym: string, lang?: string): boolean {
+        const query = synonym.toLowerCase();
+        if (lang) {
+            const set = this.synonyms[lang];
+            if (!set) return false;
+            for (const s of set) {
+                if (s.toLowerCase() === query) return true;
+            }
+            return false;
+        }
+
+        for (const set of Object.values(this.synonyms)) {
+            for (const s of set) {
+                if (s.toLowerCase() === query) return true;
+            }
+        }
+        return false;
+    }
+
+    addAntonym(antonym: Tag | string): this {
+        const antonymTag = typeof antonym === "string" ? this.semanticPackage.tags.tag(antonym) : antonym;
+        if (antonymTag === this) {
+            throw new Error(`Cannot add tag '${this.name}' as antonym of itself.`);
+        }
+        this.antonyms.add(antonymTag);
+        antonymTag.antonyms.add(this);
+        return this;
+    }
+
+    removeAntonym(antonym: Tag | string): this {
+        const antonymName = typeof antonym === "string" ? antonym : antonym.name;
+        for (const a of this.antonyms) {
+            if (a.name === antonymName) {
+                this.antonyms.delete(a);
+                a.antonyms.delete(this);
+                break;
+            }
+        }
+        return this;
+    }
+
+    isAntonymOf(other: Tag | string): boolean {
+        const otherName = typeof other === "string" ? other : other.name;
+        for (const a of this.antonyms) {
+            if (a.name === otherName) return true;
+        }
+        return false;
     }
 
     addParent(parent: Tag): this {
@@ -130,7 +244,15 @@ export class Tag {
     toJSON() {
         return {
             name: this.name,
+            displayName: this.displayName,
+            displayNames: this.displayNames,
             description: this.description,
+            abstract: this.abstract,
+            exclusive: this.exclusive,
+            synonyms: Object.fromEntries(
+                Object.entries(this.synonyms).map(([lang, set]) => [lang, Array.from(set)])
+            ),
+            antonyms: Array.from(this.antonyms).map(a => a.name),
             parents: Array.from(this.parents).map(p => p.name),
             children: Array.from(this.children).map(c => c.name),
             metadata: this.metadata
@@ -152,9 +274,27 @@ export class TagTaxonomy {
             tag = new Tag(this.semanticPackage, name, options);
             this.tagMap.set(name, tag);
         } else {
-            if (options.description) tag.description = options.description;
-            if (options.metadata) tag.metadata = { ...tag.metadata, ...options.metadata };
-            if (options.embedding) tag.embedding = options.embedding;
+            if (options.description !== undefined) tag.description = options.description;
+            if (options.metadata !== undefined) tag.metadata = { ...tag.metadata, ...options.metadata };
+            if (options.embedding !== undefined) tag.embedding = options.embedding;
+            if (options.abstract !== undefined) tag.abstract = options.abstract;
+            if (options.exclusive !== undefined) tag.exclusive = options.exclusive;
+            if (options.displayName) {
+                if (typeof options.displayName === "string") {
+                    tag.displayNames["en"] = options.displayName;
+                } else {
+                    Object.assign(tag.displayNames, options.displayName);
+                }
+            }
+            if (options.synonyms) {
+                if (Array.isArray(options.synonyms)) {
+                    for (const s of options.synonyms) tag.addSynonym(s, "en");
+                } else {
+                    for (const [lang, syns] of Object.entries(options.synonyms)) {
+                        for (const s of syns) tag.addSynonym(s, lang);
+                    }
+                }
+            }
         }
 
         if (options.parents) {
@@ -164,15 +304,30 @@ export class TagTaxonomy {
             }
         }
 
+        if (options.antonyms) {
+            for (const antonym of options.antonyms) {
+                tag.addAntonym(antonym);
+            }
+        }
+
         return tag;
     }
 
-    get(name: string): Tag | undefined {
-        return this.tagMap.get(name);
+    get(nameOrSynonym: string): Tag | undefined {
+        const direct = this.tagMap.get(nameOrSynonym);
+        if (direct) return direct;
+
+        const normalized = nameOrSynonym.toLowerCase();
+        for (const tag of this.tagMap.values()) {
+            if (tag.name.toLowerCase() === normalized) return tag;
+            if (tag.displayName.toLowerCase() === normalized) return tag;
+            if (tag.hasSynonym(nameOrSynonym)) return tag;
+        }
+        return undefined;
     }
 
-    has(name: string): boolean {
-        return this.tagMap.has(name);
+    has(nameOrSynonym: string): boolean {
+        return this.get(nameOrSynonym) !== undefined;
     }
 
     all(): Tag[] {
@@ -189,22 +344,39 @@ export class TagTaxonomy {
         for (const child of tag.children) {
             child.parents.delete(tag);
         }
+        for (const antonym of tag.antonyms) {
+            antonym.antonyms.delete(tag);
+        }
         return this.tagMap.delete(name);
     }
 
     /**
      * Loads a nested taxonomy tree into the multi-parent DAG.
+     * Supports metadata properties like $abstract, $exclusive, $synonyms, $displayName.
      * Example:
      * taxonomy.loadTaxonomy({
-     *   ai: {
-     *     ml: { deepLearning: {} },
-     *     nlp: { llm: {} }
+     *   Status: {
+     *     $exclusive: true,
+     *     $abstract: true,
+     *     Draft: {},
+     *     Published: {}
      *   }
      * });
      */
     loadTaxonomy(tree: Record<string, any>, parentTag?: Tag): this {
         for (const [key, value] of Object.entries(tree)) {
-            const currentTag = this.tag(key);
+            if (key.startsWith("$")) continue;
+
+            const opts: TagOptions = {};
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+                if (value.$abstract !== undefined) opts.abstract = value.$abstract;
+                if (value.$exclusive !== undefined) opts.exclusive = value.$exclusive;
+                if (value.$displayName !== undefined) opts.displayName = value.$displayName;
+                if (value.$synonyms !== undefined) opts.synonyms = value.$synonyms;
+                if (value.$description !== undefined) opts.description = value.$description;
+            }
+
+            const currentTag = this.tag(key, opts);
             if (parentTag) {
                 currentTag.addParent(parentTag);
             }

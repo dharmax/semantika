@@ -206,11 +206,54 @@ sqlite.ancestors; // Set: sql, database, backend, storage, tech
 sqlite.isDescendantOf('storage'); // true!
 sqlite.isDescendantOf('nosql');   // false
 
-// Subsumption: Queries with expandTaxonomy automatically include descendant tags
-doc.hasTag('database', { expandTaxonomy: true }); // true even if tagged only with 'sqlite'!
+// Default Subsumption: If artifact has X, and X is a child of Y, hasTag(Y) is true
+doc.hasTag('database'); // true!
+doc.hasTag('database', { exact: true }); // false (exact check)
 ```
 
-### 4. Tag Exposition Functions
+### 4. Abstract Tags, Exclusive Tags & Antonyms
+Enforce structural integrity and mutual exclusivity on tags:
+```ts
+// Abstract tag: only descendants may be placed on artifacts
+const status = sp.tags.tag('Status', { abstract: true, exclusive: true });
+const draft = sp.tags.tag('Draft').addParent(status);
+const published = sp.tags.tag('Published').addParent(status);
+
+await doc.tag('Status');    // ❌ Error: Cannot tag with abstract tag 'Status'
+await doc.tag('Draft');     // ✅ Works
+
+// Exclusive tag: at most ONE descendant can be placed on an artifact
+await doc.tag('Published'); // ❌ Error: Exclusive tag violation: conflicts with 'Draft'
+
+// Antonyms: bidirectional opposition
+const active = sp.tags.tag('Active');
+const inactive = sp.tags.tag('Inactive');
+active.addAntonym(inactive);
+
+await doc.tag('Active');
+await doc.tag('Inactive');  // ❌ Error: Antonym conflict with 'Active'
+```
+
+### 5. Multi-Language Synonyms & Localized Display Names
+```ts
+const ai = sp.tags.tag('art-intel', {
+    displayName: 'Artificial Intelligence', // Default English display name
+    synonyms: {
+        en: ['machine intelligence', 'cognitive computing'],
+        fr: ['intelligence artificielle'],
+        he: ['בינה מלאכותית']
+    }
+});
+
+ai.displayName; // 'Artificial Intelligence'
+await doc.tag('art-intel');
+
+// Querying by any synonym matches seamlessly
+doc.hasTag('machine intelligence'); // true
+doc.hasTag('intelligence artificielle'); // true
+```
+
+### 6. Tag Exposition Functions
 Navigate from a tag directly to tagged entities, predicates, and artifacts:
 ```ts
 const dbTag = sp.tags.tag('database');
@@ -222,7 +265,7 @@ const entities = await dbTag.entities({ includeDescendants: true });
 const count = await dbTag.count({ includeDescendants: true });
 ```
 
-### 5. Pluggable Vector DB Adapter & Semantic Search
+### 7. Pluggable Vector DB Adapter & Semantic Search
 Connect any vector database (Qdrant, Chroma, Pinecone, pgvector) using the Service Adapter Pattern, or use the built-in `InMemoryVectorStore`:
 ```ts
 import { InMemoryVectorStore } from '@dharmax/semantika';
@@ -299,14 +342,19 @@ import { MongoStore } from '@dharmax/semantika/mongo';
 - `entity.drill(inDepth, outDepth)` (Recursive connection graph population)
 ### Tag & Artifact Tagging DSL (`SemanticArtifact` & `Tag`)
 - `artifact.tag(...tags)` / `artifact.untag(...tags)` (Attach / detach tags with DB persistence)
-- `artifact.hasTag(tag, { expandTaxonomy? })` (Exact match or taxonomy subsumption)
-- `artifact.matchesTagQuery(query, { expandTaxonomy? })` (Boolean evaluation: `and`, `or`, `xor`, `not`)
+- `artifact.hasTag(tag, { exact? })` (Default taxonomy subsumption; exact match via `{ exact: true }`)
+- `artifact.matchesTagQuery(query, { exact? })` (Boolean evaluation: `and`, `or`, `xor`, `not`)
 - `artifact.tags` (`Set<string>`) / `artifact.tagList` (`string[]`)
+- `tag.abstract` / `tag.exclusive` (Structural constraints and mutual exclusion)
+- `tag.displayName` / `tag.getDisplayName(lang)` / `tag.setDisplayName(name, lang)` (Multi-language display names, defaults to English)
+- `tag.addSynonym(synonym, lang?)` / `tag.getSynonyms(lang?)` / `tag.hasSynonym(synonym)` (Multi-language synonyms)
+- `tag.antonyms` / `tag.addAntonym(antonym)` / `tag.isAntonymOf(tag)` (Bidirectional antonym opposition)
 - `tag.parents` / `tag.children` / `tag.ancestors` / `tag.descendants`
 - `tag.addParent(parent)` / `tag.removeParent(parent)` (DAG management with cycle detection)
 - `tag.isDescendantOf(tag)` / `tag.isAncestorOf(tag)`
 - `tag.entities(opts)` / `tag.predicates(opts)` / `tag.artifacts(opts)` / `tag.count(opts)`
 - `tag.similar(opts)` (Vector search)
+- `sp.tags.loadTaxonomy(tree)` / `sp.tags.tag(name, opts)` / `sp.tags.delete(name)`
 - `sp.setVectorStore(store)` / `sp.indexTagVector(tag)` / `sp.findSimilarTags(tag)`
 
 ### Package DSL (`SemanticPackage`)

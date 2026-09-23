@@ -193,21 +193,22 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(tech.isAncestorOf('sqlite')).toBe(true);
     });
 
-    it("should support taxonomy-expanded queries (subsumption)", async () => {
+    it("should support default taxonomy subsumption on hasTag", async () => {
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'SQLite Architecture' }, false, true, ['sqlite']);
 
-        // Without expansion: only exact tag matches
+        // Default behavior: if artifact is tagged with X, and X is a child/descendant of Y, hasTag(Y) is true
         expect(doc.hasTag('sqlite')).toBe(true);
-        expect(doc.hasTag('database')).toBe(false);
-        expect(doc.hasTag('tech')).toBe(false);
+        expect(doc.hasTag('database')).toBe(true);
+        expect(doc.hasTag('backend')).toBe(true);
+        expect(doc.hasTag('tech')).toBe(true);
+        expect(doc.hasTag('nosql')).toBe(false);
 
-        // With taxonomy expansion: matches through subsumption
-        expect(doc.hasTag('database', { expandTaxonomy: true })).toBe(true);
-        expect(doc.hasTag('tech', { expandTaxonomy: true })).toBe(true);
-        expect(doc.hasTag('nosql', { expandTaxonomy: true })).toBe(false);
+        // Exact match flag explicitly disables subsumption
+        expect(doc.hasTag('database', { exact: true })).toBe(false);
+        expect(doc.hasTag('sqlite', { exact: true })).toBe(true);
 
-        // Boolean query with taxonomy expansion
-        expect(doc.matchesTagQuery({ and: ['database', { not: 'nosql' }] }, { expandTaxonomy: true })).toBe(true);
+        // Boolean query with default taxonomy subsumption
+        expect(doc.matchesTagQuery({ and: ['database', { not: 'nosql' }] })).toBe(true);
     });
 
     it("should support Tag exposition functions (entities, predicates, artifacts, count)", async () => {
@@ -328,5 +329,109 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         // Mismatched dimension on query should throw
         await expect(store.query([1.0, 0.0])).rejects.toThrow('dimension mismatch');
     });
+
+    it("should prevent placing abstract tags directly on artifacts", async () => {
+        const abstractParent = sp.tags.tag('LifecycleState', { abstract: true });
+        const concreteChild = sp.tags.tag('Initialized').addParent(abstractParent);
+
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Test Lifecycle' });
+
+        // Tagging with concrete child succeeds
+        await doc.tag('Initialized');
+        expect(doc.hasTag('Initialized')).toBe(true);
+        // By subsumption, it has the abstract parent
+        expect(doc.hasTag('LifecycleState')).toBe(true);
+
+        // Attempting to tag directly with the abstract parent must throw
+        await expect(doc.tag('LifecycleState')).rejects.toThrow("Cannot tag artifact with abstract tag 'LifecycleState'");
+
+        // Also prevented during entity creation
+        await expect(
+            sp.createEntity<Document>(Document.dcr, { title: 'Invalid' }, false, true, ['LifecycleState'])
+        ).rejects.toThrow("Cannot tag artifact with abstract tag 'LifecycleState'");
+    });
+
+    it("should enforce exclusive tag constraints (at most one descendant on an artifact)", async () => {
+        const exclusiveCategory = sp.tags.tag('AccessLevel', { exclusive: true, abstract: true });
+        const levelPublic = sp.tags.tag('LevelPublic').addParent(exclusiveCategory);
+        const levelPrivate = sp.tags.tag('LevelPrivate').addParent(exclusiveCategory);
+        const levelConfidential = sp.tags.tag('LevelConfidential').addParent(exclusiveCategory);
+
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Confidential Doc' });
+
+        // Tagging with one descendant works
+        await doc.tag('LevelPublic');
+        expect(doc.hasTag('LevelPublic')).toBe(true);
+
+        // Tagging with a second descendant of the same exclusive tag must throw
+        await expect(doc.tag('LevelPrivate')).rejects.toThrow("Exclusive tag violation");
+
+        // Batch tagging with multiple descendants of an exclusive tag must throw
+        const doc2 = await sp.createEntity<Document>(Document.dcr, { title: 'Confidential Doc 2' });
+        await expect(doc2.tag('LevelPublic', 'LevelConfidential')).rejects.toThrow("Exclusive tag violation");
+
+        // Untagging the first allows tagging the second
+        await doc.untag('LevelPublic');
+        await doc.tag('LevelPrivate');
+        expect(doc.hasTag('LevelPrivate')).toBe(true);
+        expect(doc.hasTag('LevelPublic')).toBe(false);
+    });
+
+    it("should support multi-language synonyms with default English display name", async () => {
+        const aiTag = sp.tags.tag('art-intel', {
+            displayName: 'Artificial Intelligence',
+            synonyms: {
+                en: ['machine intelligence', 'cognitive computing'],
+                fr: ['intelligence artificielle'],
+                he: ['בינה מלאכותית']
+            }
+        });
+
+        // Default display name is English
+        expect(aiTag.displayName).toBe('Artificial Intelligence');
+        expect(aiTag.getDisplayName('en')).toBe('Artificial Intelligence');
+
+        // Multi-language synonyms access
+        expect(aiTag.getSynonyms('en')).toContain('machine intelligence');
+        expect(aiTag.getSynonyms('fr')).toContain('intelligence artificielle');
+        expect(aiTag.getSynonyms('he')).toContain('בינה מלאכותית');
+        expect(aiTag.hasSynonym('machine intelligence')).toBe(true);
+        expect(aiTag.hasSynonym('intelligence artificielle')).toBe(true);
+        expect(aiTag.hasSynonym('בינה מלאכותית')).toBe(true);
+
+        // Tag an artifact and query using synonyms
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'AI Paper' });
+        await doc.tag('art-intel');
+
+        // hasTag resolves through synonyms seamlessly
+        expect(doc.hasTag('art-intel')).toBe(true);
+        expect(doc.hasTag('machine intelligence')).toBe(true);
+        expect(doc.hasTag('intelligence artificielle')).toBe(true);
+        expect(doc.hasTag('בינה מלאכותית')).toBe(true);
+        expect(doc.hasTag('Artificial Intelligence')).toBe(true);
+    });
+
+    it("should support bidirectional antonyms and prevent antonym conflicts", async () => {
+        const active = sp.tags.tag('tag-active');
+        const inactive = sp.tags.tag('tag-inactive');
+
+        // Add antonym bidirectionally
+        active.addAntonym(inactive);
+        expect(active.antonyms.has(inactive)).toBe(true);
+        expect(inactive.antonyms.has(active)).toBe(true);
+        expect(active.isAntonymOf('tag-inactive')).toBe(true);
+        expect(inactive.isAntonymOf('tag-active')).toBe(true);
+
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Active Doc' });
+        await doc.tag('tag-active');
+
+        // Attempting to tag with antonym must throw
+        await expect(doc.tag('tag-inactive')).rejects.toThrow("Antonym conflict");
+
+        // Attempting to tag both simultaneously must throw
+        const doc2 = await sp.createEntity<Document>(Document.dcr, { title: 'Conflict Doc' });
+        await expect(doc2.tag('tag-active', 'tag-inactive')).rejects.toThrow("Antonym conflict");
+    });
 });
+
 

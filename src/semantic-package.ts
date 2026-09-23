@@ -1,5 +1,6 @@
 import {RawOntology} from "./raw-ontology.js";
 import {AbstractEntity} from "./abstract-entity.js";
+import {validateArtifactTags} from "./semantic-artifact.js";
 import {LoggedException} from "./utils/logged-exception.js";
 import {IFindPredicatesOptions, IReadOptions, IReadResult} from "./types.js";
 import {Predicate} from "./predicate.js";
@@ -140,7 +141,9 @@ export class SemanticPackage {
             timestamp: Date.now()
         };
         if (tags && tags.length > 0) {
-            pred._tags = tags.map(t => (typeof t === "string" ? t : t.name));
+            const rawNames = tags.map(t => (typeof t === "string" ? t : t.name));
+            validateArtifactTags(this.tags, rawNames, rawNames);
+            pred._tags = rawNames;
         }
         pDcr.keys && (await addKeys());
 
@@ -312,7 +315,9 @@ export class SemanticPackage {
         fields = processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
         const record = { ...fields } as any;
         if (rawTags && Array.isArray(rawTags)) {
-            record._tags = rawTags.map(t => (typeof t === "string" ? t : t.name));
+            const rawNames = rawTags.map(t => (typeof t === "string" ? t : t.name));
+            validateArtifactTags(this.tags, rawNames, rawNames);
+            record._tags = rawNames;
         }
         const col = await this.collectionForEntityType(eDcr);
         let id = await col.append(record);
