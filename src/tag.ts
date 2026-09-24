@@ -467,4 +467,16 @@ export class TagTaxonomy {
         }
         return this;
     }
+
+    clear(): void {
+        this.tagMap.clear();
+    }
+
+    toJSON(): Record<string, any> {
+        const result: Record<string, any> = {};
+        for (const [name, tag] of this.tagMap.entries()) {
+            result[name] = tag.toJSON();
+        }
+        return result;
+    }
 }

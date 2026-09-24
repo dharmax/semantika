@@ -26,6 +26,7 @@ export interface IPredicateRecord {
     payload: any
     _id?: string
     _created?
+    _tags?: string[]
     peerEntity?: AbstractEntity
     peerIsSource?: boolean
 

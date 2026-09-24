@@ -85,7 +85,8 @@ export class Ontology {
         return {
             semanticPackage: this.semanticPackage.name,
             entities: Object.fromEntries(Object.entries(this.entityDcrs).map(([name, dcr]) => [name, dcr.toJSON()])),
-            predicates: Object.fromEntries(Object.entries(this.predicateDcrs).map(([name, dcr]) => [name, dcr.toJSON()]))
+            predicates: Object.fromEntries(Object.entries(this.predicateDcrs).map(([name, dcr]) => [name, dcr.toJSON()])),
+            tags: this.semanticPackage.tags?.toJSON() ?? {}
         };
     }
 

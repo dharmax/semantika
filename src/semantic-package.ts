@@ -141,7 +141,11 @@ export class SemanticPackage {
             timestamp: Date.now()
         };
         if (tags && tags.length > 0) {
-            const rawNames = tags.map(t => (typeof t === "string" ? t : t.name));
+            const rawNames = tags.map(t => {
+                if (typeof t !== "string") return t.name;
+                const tagObj = this.tags?.get(t);
+                return tagObj ? tagObj.name : t;
+            });
             validateArtifactTags(this.tags, rawNames, rawNames);
             pred._tags = rawNames;
         }
@@ -239,11 +243,12 @@ export class SemanticPackage {
 
         if (opts.tagQuery && pagination) {
             const originalFilter = pagination.filterFunction;
+            const expand = opts.expandTaxonomy ?? true;
             pagination.filterFunction = async (items: any[]) => {
                 if (originalFilter) items = await originalFilter(items);
                 return items.filter(p => {
                     const itemTags = new Set<string>(p._tags || []);
-                    return evaluateTagQuery(itemTags, opts.tagQuery!, opts.expandTaxonomy ? self.tags : undefined);
+                    return evaluateTagQuery(itemTags, opts.tagQuery!, expand ? self.tags : undefined);
                 });
             };
         }
@@ -259,9 +264,10 @@ export class SemanticPackage {
 
         async function enrich(predicates: IPredicateRecord[]) {
             if (opts.tagQuery) {
+                const expand = opts.expandTaxonomy ?? true;
                 predicates = predicates.filter(p => {
                     const itemTags = new Set<string>(p._tags || []);
-                    return evaluateTagQuery(itemTags, opts.tagQuery!, opts.expandTaxonomy ? self.tags : undefined);
+                    return evaluateTagQuery(itemTags, opts.tagQuery!, expand ? self.tags : undefined);
                 });
             }
             if (opts.projection || opts.peerType) {
@@ -315,7 +321,11 @@ export class SemanticPackage {
         fields = processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
         const record = { ...fields } as any;
         if (rawTags && Array.isArray(rawTags)) {
-            const rawNames = rawTags.map(t => (typeof t === "string" ? t : t.name));
+            const rawNames = rawTags.map(t => {
+                if (typeof t !== "string") return t.name;
+                const tagObj = this.tags?.get(t);
+                return tagObj ? tagObj.name : t;
+            });
             validateArtifactTags(this.tags, rawNames, rawNames);
             record._tags = rawNames;
         }
@@ -467,9 +477,10 @@ export class SemanticPackage {
         tag: Tag | string,
         options: { includeDescendants?: boolean; entityType?: string } = {}
     ): Promise<T[]> {
-        const tagName = typeof tag === "string" ? tag : tag.name;
         const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
-        const targetTags = new Set<string>([tagName]);
+        const canonicalName = tagObj ? tagObj.name : (typeof tag === "string" ? tag : tag.name);
+        const targetTags = new Set<string>([canonicalName]);
+        if (typeof tag === "string") targetTags.add(tag);
         if (options.includeDescendants && tagObj) {
             for (const d of tagObj.descendants) targetTags.add(d.name);
         }
@@ -494,9 +505,10 @@ export class SemanticPackage {
         tag: Tag | string,
         options: { includeDescendants?: boolean; predicateName?: string } = {}
     ): Promise<Predicate[]> {
-        const tagName = typeof tag === "string" ? tag : tag.name;
         const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
-        const targetTags = new Set<string>([tagName]);
+        const canonicalName = tagObj ? tagObj.name : (typeof tag === "string" ? tag : tag.name);
+        const targetTags = new Set<string>([canonicalName]);
+        if (typeof tag === "string") targetTags.add(tag);
         if (options.includeDescendants && tagObj) {
             for (const d of tagObj.descendants) targetTags.add(d.name);
         }

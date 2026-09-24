@@ -117,7 +117,12 @@ export abstract class SemanticArtifact {
     }
 
     async tag(...tags: (string | Tag)[]): Promise<this> {
-        const names = tags.map(t => (typeof t === "string" ? t : t.name));
+        const taxonomy = this.semanticPackage?.tags;
+        const names = tags.map(t => {
+            if (typeof t !== "string") return t.name;
+            const tagObj = taxonomy?.get(t);
+            return tagObj ? tagObj.name : t;
+        });
         const currentSet = this.tags;
         const newNames: string[] = [];
         for (const n of names) {
@@ -149,13 +154,15 @@ export abstract class SemanticArtifact {
     }
 
     async untag(...tags: (string | Tag)[]): Promise<this> {
-        const names = new Set(tags.map(t => (typeof t === "string" ? t : t.name)));
+        const taxonomy = this.semanticPackage?.tags;
         const currentSet = this.tags;
         let modified = false;
-        for (const n of names) {
-            if (currentSet.delete(n)) {
-                modified = true;
-            }
+        for (const t of tags) {
+            const rawName = typeof t === "string" ? t : t.name;
+            const tagObj = taxonomy?.get(rawName);
+            const canonicalName = tagObj ? tagObj.name : rawName;
+            if (currentSet.delete(canonicalName)) modified = true;
+            if (currentSet.delete(rawName)) modified = true;
         }
         if (!modified) return this;
         this._tags = Array.from(currentSet);

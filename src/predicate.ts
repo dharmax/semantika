@@ -30,6 +30,9 @@ export class Predicate extends SemanticArtifact implements IPredicateRecord {
         super(semanticPackage, record._id || record.id)
         delete record['id']
         Object.assign(this, record)
+        if (record._tags && Array.isArray(record._tags)) {
+            this._tags = [...record._tags];
+        }
         this.sourceEntity = record.peerIsSource && record.peerEntity
         this.targetEntity = !record.peerIsSource && record.peerEntity
     }

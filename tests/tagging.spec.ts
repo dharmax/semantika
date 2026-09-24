@@ -475,7 +475,67 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(db.synonym).toBe('storage-engine');
         expect(db.hasSynonym('storage-engine')).toBe(true);
     });
+
+    it("should accept Tag objects directly in TagQueryExpression", async () => {
+        const tDb = sp.tags.tag('tag-db');
+        const tSql = sp.tags.tag('tag-sql', { parent: tDb });
+        const tLegacy = sp.tags.tag('tag-legacy');
+
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Modern SQL' });
+        await doc.tag(tSql);
+
+        // Direct Tag in TagQueryExpression with subsumption
+        expect(doc.matchesTagQuery(tDb)).toBe(true);
+        expect(doc.matchesTagQuery({ has: tDb })).toBe(true);
+        expect(doc.matchesTagQuery({
+            and: [
+                tDb,
+                { not: tLegacy }
+            ]
+        })).toBe(true);
+
+        expect(doc.matchesTagQuery({
+            xor: [tDb, tLegacy]
+        })).toBe(true);
+    });
+
+    it("should normalize synonyms to canonical tag names on artifact and support synonym lookup", async () => {
+        const mlTag = sp.tags.tag('machine-learning', {
+            displayName: 'Machine Learning',
+            synonym: 'deep-learning'
+        });
+
+        const doc = await sp.createEntity<Document>(Document.dcr, { title: 'DL Research' });
+        // Tag using synonym
+        await doc.tag('deep-learning');
+
+        // Stored under canonical name
+        expect(doc.tags.has('machine-learning')).toBe(true);
+        expect(doc.hasTag('deep-learning')).toBe(true);
+        expect(doc.hasTag('machine-learning')).toBe(true);
+
+        // findEntitiesByTag works when querying by synonym
+        const found = await sp.findEntitiesByTag<Document>('deep-learning');
+        expect(found.some(d => d.id === doc.id)).toBe(true);
+
+        // Untag via synonym works
+        await doc.untag('deep-learning');
+        expect(doc.hasTag('machine-learning')).toBe(false);
+    });
+
+    it("should export full tag taxonomy in ontology.exportSchema() and serialize cleanly to JSON", () => {
+        const schema = sp.ontology.exportSchema();
+        expect(schema.tags).toBeDefined();
+        expect(typeof schema.tags).toBe('object');
+
+        // Test taxonomy serialization
+        const json = sp.tags.toJSON();
+        expect(json).toBeDefined();
+        expect(json['machine-learning']).toBeDefined();
+        expect(json['machine-learning'].displayName).toBe('Machine Learning');
+    });
 });
+
 
 
 
