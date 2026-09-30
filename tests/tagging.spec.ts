@@ -142,7 +142,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         ).toBe(true);
     });
 
-    it("should construct a Multi-Parent Directed Acyclic Graph (DAG) Taxonomy", () => {
+    it("should construct a Multi-Parent Directed Acyclic Graph (DAG) Taxonomy", async () => {
         // Taxonomy hierarchy:
         //        tech
         //       /    \
@@ -153,15 +153,15 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         //     sql     nosql
         //     /
         //   sqlite
-        const tech = sp.tags.tag('tech');
-        const backend = sp.tags.tag('backend').addParent(tech);
-        const storage = sp.tags.tag('storage').addParent(tech);
+        const tech = await sp.tags.define('tech');
+        const backend = await sp.tags.define('backend', {parent: tech});
+        const storage = await sp.tags.define('storage', {parent: tech});
 
         // Multi-parent: database is both backend AND storage!
-        const database = sp.tags.tag('database').addParent(backend).addParent(storage);
-        const sql = sp.tags.tag('sql').addParent(database);
-        const nosql = sp.tags.tag('nosql').addParent(database);
-        const sqlite = sp.tags.tag('sqlite').addParent(sql);
+        const database = await sp.tags.define('database', {parents: [backend, storage]});
+        const sql = await sp.tags.define('sql', {parent: database});
+        const nosql = await sp.tags.define('nosql', {parent: database});
+        const sqlite = await sp.tags.define('sqlite', {parent: sql});
 
         // Direct parents & children
         expect(database.parents.has(backend)).toBe(true);
@@ -212,8 +212,8 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should support Tag exposition functions (entities, predicates, artifacts, count)", async () => {
-        const secTag = sp.tags.tag('security');
-        const auditTag = sp.tags.tag('audit').addParent(secTag);
+        const secTag = await sp.tags.define('security');
+        const auditTag = await sp.tags.define('audit', {parent: secTag});
 
         const svc = await sp.createEntity<Service>(Service.dcr, { name: 'KmsService' }, false, true, ['audit']);
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Compliance Report' }, false, true, ['audit']);
@@ -239,9 +239,9 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
 
         // Synthetic 3-dimensional embeddings for testing
         // ml & nlp are close in space; security is orthogonal
-        const tMl = sp.tags.tag('machine-learning', { embedding: [0.9, 0.8, 0.1] });
-        const tNlp = sp.tags.tag('natural-language-processing', { embedding: [0.85, 0.85, 0.15] });
-        const tSec = sp.tags.tag('cyber-security', { embedding: [0.1, 0.1, 0.95] });
+        const tMl = await sp.tags.define('machine-learning', { embedding: [0.9, 0.8, 0.1] });
+        const tNlp = await sp.tags.define('natural-language-processing', { embedding: [0.85, 0.85, 0.15] });
+        const tSec = await sp.tags.define('cyber-security', { embedding: [0.1, 0.1, 0.95] });
 
         await sp.indexTagVector(tMl);
         await sp.indexTagVector(tNlp);
@@ -286,30 +286,32 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(nonCritical[0].hasTag('low-priority')).toBe(true);
     });
 
-    it("should prevent cycles in the Tag Taxonomy DAG", () => {
-        const root = sp.tags.tag('dag-root');
-        const child = sp.tags.tag('dag-child').addParent(root);
-        const grandChild = sp.tags.tag('dag-grandchild').addParent(child);
+    it("should prevent cycles in the Tag Taxonomy DAG", async () => {
+        const root = await sp.tags.define('dag-root');
+        const child = await sp.tags.define('dag-child', {parent: root});
+        const grandChild = await sp.tags.define('dag-grandchild', {parent: child});
 
         // Self-parenting must throw
-        expect(() => root.addParent(root)).toThrow('Cannot add tag');
+        await expect(root.addParent(root)).rejects.toThrow('Invalid parent');
 
         // Cycle creation (adding descendant as parent) must throw
-        expect(() => root.addParent(grandChild)).toThrow('Cycle detected');
-        expect(() => root.addParent(child)).toThrow('Cycle detected');
+        await expect(root.addParent(grandChild)).rejects.toThrow('Cycle detected');
+        await expect(root.addParent(child)).rejects.toThrow('Cycle detected');
     });
 
-    it("should safely delete tags from TagTaxonomy and sever DAG relationships", () => {
-        const p = sp.tags.tag('del-parent');
-        const m = sp.tags.tag('del-middle').addParent(p);
-        const c = sp.tags.tag('del-child').addParent(m);
+    it("should safely delete tags from TagTaxonomy and sever DAG relationships", async () => {
+        const p = await sp.tags.define('del-parent');
+        const m = await sp.tags.define('del-middle', {parent: p});
+        const c = await sp.tags.define('del-child', {parent: m});
 
         expect(m.parents.has(p)).toBe(true);
         expect(p.children.has(m)).toBe(true);
         expect(c.ancestors.has(p)).toBe(true);
 
         // Delete middle tag
-        const deleted = sp.tags.delete('del-middle');
+        await expect(sp.tags.remove('del-middle')).rejects.toThrow('referenced');
+        await c.removeParent(m);
+        const deleted = await sp.tags.remove('del-middle');
         expect(deleted).toBe(true);
         expect(sp.tags.has('del-middle')).toBe(false);
 
@@ -331,8 +333,8 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should prevent placing abstract tags directly on artifacts", async () => {
-        const abstractParent = sp.tags.tag('LifecycleState', { abstract: true });
-        const concreteChild = sp.tags.tag('Initialized').addParent(abstractParent);
+        const abstractParent = await sp.tags.define('LifecycleState', { abstract: true });
+        const concreteChild = await sp.tags.define('Initialized', {parent: abstractParent});
 
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Test Lifecycle' });
 
@@ -352,10 +354,10 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should enforce exclusive tag constraints (at most one descendant on an artifact)", async () => {
-        const exclusiveCategory = sp.tags.tag('AccessLevel', { exclusive: true, abstract: true });
-        const levelPublic = sp.tags.tag('LevelPublic').addParent(exclusiveCategory);
-        const levelPrivate = sp.tags.tag('LevelPrivate').addParent(exclusiveCategory);
-        const levelConfidential = sp.tags.tag('LevelConfidential').addParent(exclusiveCategory);
+        const exclusiveCategory = await sp.tags.define('AccessLevel', { exclusive: true, abstract: true });
+        const levelPublic = await sp.tags.define('LevelPublic', {parent: exclusiveCategory});
+        const levelPrivate = await sp.tags.define('LevelPrivate', {parent: exclusiveCategory});
+        const levelConfidential = await sp.tags.define('LevelConfidential', {parent: exclusiveCategory});
 
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Confidential Doc' });
 
@@ -378,7 +380,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should support multi-language synonyms with default English display name", async () => {
-        const aiTag = sp.tags.tag('art-intel', {
+        const aiTag = await sp.tags.define('art-intel', {
             displayName: 'Artificial Intelligence',
             synonyms: {
                 en: ['machine intelligence', 'cognitive computing'],
@@ -412,11 +414,11 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should support bidirectional antonyms and prevent antonym conflicts", async () => {
-        const active = sp.tags.tag('tag-active');
-        const inactive = sp.tags.tag('tag-inactive');
+        const active = await sp.tags.define('tag-active');
+        const inactive = await sp.tags.define('tag-inactive');
 
         // Add antonym bidirectionally
-        active.addAntonym(inactive);
+        await active.addAntonym(inactive);
         expect(active.antonyms.has(inactive)).toBe(true);
         expect(inactive.antonyms.has(active)).toBe(true);
         expect(active.isAntonymOf('tag-inactive')).toBe(true);
@@ -435,8 +437,9 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
 
     it("should provide seamless ergonomics for both singular and set definitions (parent, antonym, synonym)", async () => {
         // Singular options
-        const backend = sp.tags.tag('backend-singular');
-        const db = sp.tags.tag('db-singular', {
+        const backend = await sp.tags.define('backend-singular');
+        await sp.tags.define('frontend-singular');
+        const db = await sp.tags.define('db-singular', {
             parent: 'backend-singular',
             antonym: 'frontend-singular',
             synonym: 'datastore'
@@ -450,36 +453,39 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(db.hasSynonym('datastore')).toBe(true);
 
         // Dynamic property setter
-        const cloud = sp.tags.tag('cloud-singular');
-        db.parent = cloud;
+        const cloud = await sp.tags.define('cloud-singular');
+        await db.removeParent(backend);
+        await db.addParent(cloud);
         expect(db.parent).toBe(cloud);
         expect(db.parents.has(cloud)).toBe(true);
         expect(db.parents.has(backend)).toBe(false);
 
         // Multiple parents (set) coexist cleanly with singular getter
-        db.addParent(backend);
+        await db.addParent(backend);
         expect(db.parents.size).toBe(2);
         expect(db.parents.has(cloud)).toBe(true);
         expect(db.parents.has(backend)).toBe(true);
         expect(db.parent).toBeDefined();
 
         // Antonym setter
-        const client = sp.tags.tag('client-singular');
-        db.antonym = client;
+        const client = await sp.tags.define('client-singular');
+        await db.removeAntonym('frontend-singular');
+        await db.addAntonym(client);
         expect(db.antonym).toBe(client);
         expect(db.isAntonymOf(client)).toBe(true);
         expect(db.isAntonymOf('frontend-singular')).toBe(false);
 
         // Synonym setter
-        db.synonym = 'storage-engine';
+        await db.removeSynonym('datastore');
+        await db.addSynonym('storage-engine');
         expect(db.synonym).toBe('storage-engine');
         expect(db.hasSynonym('storage-engine')).toBe(true);
     });
 
     it("should accept Tag objects directly in TagQueryExpression", async () => {
-        const tDb = sp.tags.tag('tag-db');
-        const tSql = sp.tags.tag('tag-sql', { parent: tDb });
-        const tLegacy = sp.tags.tag('tag-legacy');
+        const tDb = await sp.tags.define('tag-db');
+        const tSql = await sp.tags.define('tag-sql', { parent: tDb });
+        const tLegacy = await sp.tags.define('tag-legacy');
 
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Modern SQL' });
         await doc.tag(tSql);
@@ -500,7 +506,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should normalize synonyms to canonical tag names on artifact and support synonym lookup", async () => {
-        const mlTag = sp.tags.tag('machine-learning', {
+        const mlTag = await sp.tags.update('machine-learning', {
             displayName: 'Machine Learning',
             synonym: 'deep-learning'
         });
@@ -535,7 +541,6 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(json['machine-learning'].displayName).toBe('Machine Learning');
     });
 });
-
 
 
 

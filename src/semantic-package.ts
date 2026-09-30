@@ -50,6 +50,11 @@ export class SemanticPackage {
         this.ontology.postProcess();
     }
 
+    async ready(): Promise<this> {
+        await this.tags.ready();
+        return this;
+    }
+
     static findSemanticPackage(name: string): SemanticPackage {
         return SemanticPackage.semanticPackages[name];
     }
@@ -87,6 +92,7 @@ export class SemanticPackage {
      * internal
      */
     async loadEntityById<T>(id: string, ...projection: string[]): Promise<T> {
+        await this.ready();
         const idSegments = id.split(ID_SEPARATOR);
         const entityTypeName = idSegments[idSegments.length - 2];
         const spName = idSegments[0];
@@ -104,6 +110,7 @@ export class SemanticPackage {
     }
 
     async predicateById(pid: string): Promise<Predicate | null> {
+        await this.ready();
         const pCol: PredicateCollection = await this.collectionManager.predicateCollection(pid);
         const record = <IPredicateRecord>await pCol.findById(pid, undefined);
         if (record) return new Predicate(this, record);
@@ -114,7 +121,8 @@ export class SemanticPackage {
         return null;
     }
 
-    predicateCollection(pDcr: PredicateDcr): Promise<PredicateCollection> {
+    async predicateCollection(pDcr: PredicateDcr): Promise<PredicateCollection> {
+        await this.ready();
         return this.collectionManager.predicateCollection(pDcr);
     }
 
@@ -130,6 +138,7 @@ export class SemanticPackage {
         selfKeys: Record<string, any> = {},
         tags?: (string | Tag)[]
     ): Promise<Predicate> {
+        await this.ready();
         const pCol: PredicateCollection = await this.predicateCollection(pDcr);
         const pred: IPredicateRecord = {
             predicateName: pDcr.name,
@@ -306,6 +315,7 @@ export class SemanticPackage {
         eDcr: EntityDcr,
         initFunc?: (col: EntityCollection) => void
     ): Promise<EntityCollection> {
+        await this.ready();
         initFunc = initFunc || eDcr.initializer;
         return this.collectionManager.entityCollection(initFunc, eDcr);
     }
@@ -317,6 +327,7 @@ export class SemanticPackage {
         cutExtraFields = true,
         tags?: (string | Tag)[]
     ): Promise<T> {
+        await this.ready();
         const rawTags = tags || (fields as any)?._tags;
         fields = processTemplate(eDcr.template, fields, superSetAllowed, cutExtraFields, eDcr.clazz.name);
         const record = { ...fields } as any;
@@ -339,6 +350,7 @@ export class SemanticPackage {
         eDcr?: EntityDcr,
         ...projection: ProjectionItem[]
     ): Promise<T> {
+        await this.ready();
         if (!entityId) throw new LoggedException("No entity id!");
         let e = <T>this.makeEntity(eDcr, entityId);
         return e.populate(...projection);
@@ -429,7 +441,8 @@ export class SemanticPackage {
 
     async indexTagVector(tag: Tag | string, vector?: number[]): Promise<void> {
         if (!this.vectorStore) return;
-        const tagObj = typeof tag === "string" ? this.tags.tag(tag) : tag;
+        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
+        if (!tagObj) return;
         let vec = vector || tagObj.embedding;
         if (!vec && this.embeddingProvider) {
             vec = await this.embeddingProvider.embed(
@@ -451,7 +464,8 @@ export class SemanticPackage {
         options: { limit?: number; minScore?: number } = {}
     ): Promise<Array<{ tag: Tag; score: number }>> {
         if (!this.vectorStore) return [];
-        const tagObj = typeof tag === "string" ? this.tags.tag(tag) : tag;
+        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
+        if (!tagObj) return [];
         let queryVec = tagObj.embedding;
         if (!queryVec && this.embeddingProvider) {
             queryVec = await this.embeddingProvider.embed(tagObj.name);
@@ -467,16 +481,15 @@ export class SemanticPackage {
         return hits
             .filter(h => h.id !== tagObj.name)
             .slice(0, requestedLimit)
-            .map(h => ({
-                tag: this.tags.tag(h.id),
-                score: h.score
-            }));
+            .map(h => ({tag: this.tags.get(h.id), score: h.score}))
+            .filter((hit): hit is {tag: Tag; score: number} => !!hit.tag);
     }
 
     async findEntitiesByTag<T extends AbstractEntity = AbstractEntity>(
         tag: Tag | string,
         options: { includeDescendants?: boolean; entityType?: string } = {}
     ): Promise<T[]> {
+        await this.ready();
         const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
         const canonicalName = tagObj ? tagObj.name : (typeof tag === "string" ? tag : tag.name);
         const targetTags = new Set<string>([canonicalName]);
@@ -505,6 +518,7 @@ export class SemanticPackage {
         tag: Tag | string,
         options: { includeDescendants?: boolean; predicateName?: string } = {}
     ): Promise<Predicate[]> {
+        await this.ready();
         const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
         const canonicalName = tagObj ? tagObj.name : (typeof tag === "string" ? tag : tag.name);
         const targetTags = new Set<string>([canonicalName]);

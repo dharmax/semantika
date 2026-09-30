@@ -61,6 +61,30 @@ export function validateArtifactTags(
     }
 }
 
+export function transitionTags(taxonomy: TagTaxonomy, existing: string[], incoming: string[], replace = false): string[] {
+    const names = [...new Set(incoming)];
+    validateArtifactTags(taxonomy, names, names);
+    const prior = new Set(existing);
+    const additions = names.filter(name => !prior.has(name));
+    const final = new Set(existing);
+    if (replace) {
+        for (const name of additions) {
+            const tag = taxonomy.get(name);
+            if (!tag) continue;
+            for (const ancestor of tag.ancestors) {
+                if (!ancestor.exclusive) continue;
+                for (const old of existing) {
+                    if (old !== name && taxonomy.get(old)?.isDescendantOf(ancestor)) final.delete(old);
+                }
+            }
+        }
+    }
+    for (const name of names) final.add(name);
+    const result = [...final];
+    validateArtifactTags(taxonomy, result, names);
+    return result;
+}
+
 export abstract class SemanticArtifact {
     private readonly _semanticPackageName: string;
 
@@ -93,6 +117,7 @@ export abstract class SemanticArtifact {
      * To require an exact tag match without subsumption, pass { exact: true }.
      */
     hasTag(tag: string | Tag, options?: { exact?: boolean; expandTaxonomy?: boolean }): boolean {
+        this.semanticPackage.tags.ensureReady();
         const name = typeof tag === "string" ? tag : tag.name;
         if (this.tags.has(name)) return true;
 
@@ -111,49 +136,43 @@ export abstract class SemanticArtifact {
     }
 
     matchesTagQuery(query: TagQueryExpression, options?: { exact?: boolean; expandTaxonomy?: boolean }): boolean {
+        this.semanticPackage.tags.ensureReady();
         const shouldExpand = options?.exact ? false : (options?.expandTaxonomy ?? true);
         const taxonomy = shouldExpand ? this.semanticPackage?.tags : undefined;
         return evaluateTagQuery(this.tags, query, taxonomy);
     }
 
-    async tag(...tags: (string | Tag)[]): Promise<this> {
+    async tag(...tags: (string | Tag | {replace: boolean})[]): Promise<this> {
+        await this.semanticPackage.ready();
         const taxonomy = this.semanticPackage?.tags;
-        const names = tags.map(t => {
+        const options = tags[tags.length - 1];
+        const hasOptions = typeof options === "object" && options !== null && "replace" in options;
+        const replace = hasOptions ? Boolean(options.replace) : false;
+        const inputs = (hasOptions ? tags.slice(0, -1) : tags) as (string | Tag)[];
+        const names = inputs.map(t => {
             if (typeof t !== "string") return t.name;
             const tagObj = taxonomy?.get(t);
             return tagObj ? tagObj.name : t;
         });
-        const currentSet = this.tags;
-        const newNames: string[] = [];
-        for (const n of names) {
-            if (!currentSet.has(n)) {
-                newNames.push(n);
-            }
-        }
-        if (newNames.length === 0) return this;
-
-        const candidateList = [...this._tags, ...newNames];
-        validateArtifactTags(this.semanticPackage?.tags, candidateList, newNames);
-
-        for (const n of newNames) {
-            currentSet.add(n);
-        }
-        this._tags = Array.from(currentSet);
+        const next = transitionTags(taxonomy, this._tags, names, replace);
+        if (next.length === this._tags.length && next.every((n, i) => n === this._tags[i])) return this;
 
         const col = await this.getCollection();
         if (col) {
             const version = (this as any)._version;
             if (version !== undefined) {
-                await col.updateDocument(this.id, { _tags: this._tags }, version);
+                await col.updateDocument(this.id, { _tags: next }, version);
                 (this as any)._version = version + 1;
             } else {
-                await col.updateDocumentUnsafe(this.id, { _tags: this._tags });
+                await col.updateDocumentUnsafe(this.id, { _tags: next });
             }
         }
+        this._tags = next;
         return this;
     }
 
     async untag(...tags: (string | Tag)[]): Promise<this> {
+        await this.semanticPackage.ready();
         const taxonomy = this.semanticPackage?.tags;
         const currentSet = this.tags;
         let modified = false;
