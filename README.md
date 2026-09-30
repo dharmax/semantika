@@ -71,6 +71,7 @@ const sp = new SemanticPackage('main', {
     entityDcrs: [Developer.dcr, Project.dcr],
     predicateDcrs: [maintains]
 }, storage);
+await sp.ready();
 
 // 4. Create Entities & Edges
 const dev = await sp.createEntity<Developer>(Developer.dcr, { name: 'Alice', skill: 'AI & Systems' });
@@ -142,172 +143,53 @@ class Task extends AbstractEntity {
 
 ---
 
-## 🏷️ Tagging, Boolean Query Engine & Neuro-Symbolic Taxonomy
+## 🏷️ Durable Tags and Semantic Search
 
-Semantika features a native, clutter-free tagging subsystem with multi-parent DAG taxonomy and pluggable vector search.
+Tags are canonical names stored on artifacts. Their aliases, taxonomy and constraints live in a durable package registry. After constructing a package, call `await sp.ready()` before synchronous taxonomy reads. Async package operations wait for readiness automatically.
 
-### 1. Tagging Entities and Predicates
-Both `AbstractEntity` and `Predicate` inherit native tagging from `SemanticArtifact`:
 ```ts
-// Tag during creation
-const doc = await sp.createEntity(Document.dcr, { title: 'Whitepaper' }, false, true, ['ai', 'research']);
-const edge = await sp.createPredicate(svc1, dependsOn, svc2, {}, {}, ['rpc', 'critical']);
+const sp = new SemanticPackage('main', {
+    entityDcrs: [Document.dcr], predicateDcrs: []
+}, storage);
+await sp.ready();
 
-// Dynamic tag / untag (persists to DB automatically)
-await doc.tag('production', 'verified');
-await doc.untag('research');
-
-// Check tags
-doc.hasTag('ai'); // true
-doc.tagList;       // ['ai', 'production', 'verified']
-doc.tags;          // Set { 'ai', 'production', 'verified' }
-```
-
-### 2. Boolean Tag Query Engine (`AND`, `OR`, `XOR`, `NOT`)
-Filter artifacts using expressive, composable boolean expressions:
-```ts
-// Evaluate on loaded artifacts
-doc.matchesTagQuery({
-    and: [
-        'ai',
-        { or: ['production', 'staging'] },
-        { not: 'deprecated' },
-        { xor: ['public', 'private'] } // Strict 1-of-N mutual exclusion
-    ]
+await sp.tags.define('Status', { abstract: true, exclusive: true });
+await sp.tags.define('Draft', { parent: 'Status' });
+await sp.tags.define('Published', {
+    parent: 'Status',
+    synonyms: { en: ['released'] },
+    displayName: { fr: 'Publié' }
 });
 
-// Query incoming / outgoing predicates filtered by tag query
-const criticalEdges = await svc.outgoingPreds(dependsOn, {
-    tagQuery: { and: ['critical', { not: 'deprecated' }] }
+const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Whitepaper' });
+await doc.tag('Draft');
+doc.hasTag('Status'); // true through taxonomy subsumption
+await doc.tag('Published', { replace: true }); // one persisted update: Draft -> Published
+```
+
+`replace` only resolves conflicts among existing descendants of an exclusive ancestor. Abstract tags, antonyms, and two conflicting new tags still throw. Without `replace`, an exclusive-group conflict throws. `sp.tags.remove(name)` refuses to delete a tag still assigned to an artifact or referenced by the taxonomy.
+
+Tag changes are awaitable. Use `sp.tags.update(name, changes)`, `tag.addParent(name)`, `tag.addSynonym(value)`, and `tag.setDisplayName(value, lang)`; synchronous mutation setters and `sp.tags.tag(name, options)` are gone. Exact alias lookup uses trimmed, Unicode-normalized, case-folded names. Aliases cannot collide across canonical tags. Declarative trees can be loaded durably with `await sp.tags.defineTaxonomy(tree)`.
+
+Boolean tag queries still work:
+
+```ts
+const matches = doc.matchesTagQuery({
+    and: ['Status', { not: 'Archived' }]
 });
 ```
 
-### 3. Neuro-Symbolic Multi-Parent DAG Taxonomy
-Taxonomies are directed acyclic graphs (DAGs) supporting multiple parents (e.g. `sqlite` is both `sql` and `embedded`):
-```ts
-// Declarative loading
-sp.tags.loadTaxonomy({
-    tech: {
-        backend: {
-            database: {
-                sql: { sqlite: {}, postgres: {} },
-                nosql: { mongo: {} }
-            }
-        },
-        storage: {}
-    }
-});
+Semantic search is optional. The tag registry indexes known tags when configured and refreshes the derived vector index after tag changes. Search for arbitrary text does not create a tag.
 
-// Connect additional parent (Multi-parent DAG)
-sp.tags.tag('database').addParent(sp.tags.tag('storage'));
-
-const sqlite = sp.tags.tag('sqlite');
-sqlite.ancestors; // Set: sql, database, backend, storage, tech
-sqlite.isDescendantOf('storage'); // true!
-sqlite.isDescendantOf('nosql');   // false
-
-// Default Subsumption: If artifact has X, and X is a child of Y, hasTag(Y) is true
-doc.hasTag('database'); // true!
-doc.hasTag('database', { exact: true }); // false (exact check)
-```
-
-### 4. Abstract Tags, Exclusive Tags & Antonyms
-Enforce structural integrity and mutual exclusivity on tags:
-```ts
-// Abstract tag: only descendants may be placed on artifacts
-const status = sp.tags.tag('Status', { abstract: true, exclusive: true });
-const draft = sp.tags.tag('Draft').addParent(status);
-const published = sp.tags.tag('Published').addParent(status);
-
-await doc.tag('Status');    // ❌ Error: Cannot tag with abstract tag 'Status'
-await doc.tag('Draft');     // ✅ Works
-
-// Exclusive tag: at most ONE descendant can be placed on an artifact
-await doc.tag('Published'); // ❌ Error: Exclusive tag violation: conflicts with 'Draft'
-
-// Antonyms: bidirectional opposition
-const active = sp.tags.tag('Active');
-const inactive = sp.tags.tag('Inactive');
-active.addAntonym(inactive);
-
-await doc.tag('Active');
-await doc.tag('Inactive');  // ❌ Error: Antonym conflict with 'Active'
-```
-
-### 5. Multi-Language Synonyms & Localized Display Names
-```ts
-const ai = sp.tags.tag('art-intel', {
-    displayName: 'Artificial Intelligence', // Default English display name
-    synonyms: {
-        en: ['machine intelligence', 'cognitive computing'],
-        fr: ['intelligence artificielle'],
-        he: ['בינה מלאכותית']
-    }
-});
-
-ai.displayName; // 'Artificial Intelligence'
-await doc.tag('art-intel');
-
-// Querying by any synonym matches seamlessly
-doc.hasTag('machine intelligence'); // true
-doc.hasTag('intelligence artificielle'); // true
-```
-
-### 6. Ergonomic Fluidity: Single or a Set? Both!
-Semantika enforces **zero ceremonial clutter**. You can define and access relationships as single values or sets:
-```ts
-// Define with convenient singular properties...
-const db = sp.tags.tag('db', {
-    parent: 'backend',
-    antonym: 'frontend',
-    synonym: 'datastore'
-});
-
-// ...or full sets for DAG multi-inheritance and multilingual synonyms
-const ts = sp.tags.tag('typescript', {
-    parents: ['javascript', 'compiled-language'],
-    antonyms: ['untyped'],
-    synonyms: { en: ['ts'], fr: ['ts'] }
-});
-
-// Dynamic property getters and setters
-db.parent;          // Tag { backend }
-db.parent = cloud;  // Replaces primary parent
-db.addParent(api);  // Multi-parent DAG
-db.parents;         // Set { cloud, api }
-db.antonym;         // Tag { frontend }
-```
-
-### 7. Tag Exposition Functions
-Navigate from a tag directly to tagged entities, predicates, and artifacts:
-```ts
-const dbTag = sp.tags.tag('database');
-
-// Find all entities tagged with 'database' (optionally including descendants like sqlite, postgres)
-const entities = await dbTag.entities({ includeDescendants: true });
-
-// Count total artifacts
-const count = await dbTag.count({ includeDescendants: true });
-```
-
-### 8. Pluggable Vector DB Adapter & Semantic Search
-Connect any vector database (Qdrant, Chroma, Pinecone, pgvector) using the Service Adapter Pattern, or use the built-in `InMemoryVectorStore`:
 ```ts
 import { InMemoryVectorStore } from '@dharmax/semantika';
 
-// Attach vector store
-const vectorStore = new InMemoryVectorStore();
-sp.setVectorStore(vectorStore);
-
-// Index tag embeddings
-const tMl = sp.tags.tag('machine-learning', { embedding: [0.9, 0.8, 0.1] });
-const tNlp = sp.tags.tag('nlp', { embedding: [0.85, 0.85, 0.15] });
-await sp.indexTagVector(tMl);
-await sp.indexTagVector(tNlp);
-
-// Find semantically similar tags
-const similar = await tMl.similar();
-// Output: [ { tag: Tag('nlp'), score: 0.99 } ]
+await sp.tags.configureSearch({
+    vectorStore: new InMemoryVectorStore(),
+    embeddingProvider: { embed: async (text) => yourEmbedder(text) }
+});
+const hits = await sp.tags.search('gpu server', { limit: 10, minScore: 0.6 });
+// [{ tag: Tag, match: 'exact' | 'semantic', score?: number }]
 ```
 
 ---
@@ -365,22 +247,16 @@ import { MongoStore } from '@dharmax/semantika/mongo';
 - `entity.p.o(...)` / `entity.p.i(...)` (Shorthand graph navigation)
 - `entity.getFieldRecursive(fieldName, accumulate)` (Deep hierarchical property inheritance)
 - `entity.drill(inDepth, outDepth)` (Recursive connection graph population)
-### Tag & Artifact Tagging DSL (`SemanticArtifact` & `Tag`)
-- `artifact.tag(...tags)` / `artifact.untag(...tags)` (Attach / detach tags with DB persistence)
-- `artifact.hasTag(tag, { exact? })` (Default taxonomy subsumption; exact match via `{ exact: true }`)
-- `artifact.matchesTagQuery(query, { exact? })` (Boolean evaluation: `and`, `or`, `xor`, `not`)
-- `artifact.tags` (`Set<string>`) / `artifact.tagList` (`string[]`)
-- `tag.abstract` / `tag.exclusive` (Structural constraints and mutual exclusion)
-- `tag.displayName` / `tag.getDisplayName(lang)` / `tag.setDisplayName(name, lang)` (Multi-language display names, defaults to English)
-- `tag.addSynonym(synonym, lang?)` / `tag.getSynonyms(lang?)` / `tag.hasSynonym(synonym)` (Multi-language synonyms)
-- `tag.antonyms` / `tag.addAntonym(antonym)` / `tag.isAntonymOf(tag)` (Bidirectional antonym opposition)
+### Tag & Artifact Tagging DSL
+- `await sp.ready()` before synchronous taxonomy reads
+- `await sp.tags.define(name, options)` / `await sp.tags.update(name, changes)` / `await sp.tags.remove(name)`
+- `await sp.tags.defineTaxonomy(tree)` for a durable declarative tree
+- `sp.tags.get(nameOrAlias)` / `sp.tags.all()` for read-only registry access
+- `await artifact.tag(...tags, { replace: true })` / `await artifact.untag(...tags)`
+- `artifact.hasTag(tag, { exact? })` / `artifact.matchesTagQuery(query)`
 - `tag.parents` / `tag.children` / `tag.ancestors` / `tag.descendants`
-- `tag.addParent(parent)` / `tag.removeParent(parent)` (DAG management with cycle detection)
-- `tag.isDescendantOf(tag)` / `tag.isAncestorOf(tag)`
-- `tag.entities(opts)` / `tag.predicates(opts)` / `tag.artifacts(opts)` / `tag.count(opts)`
-- `tag.similar(opts)` (Vector search)
-- `sp.tags.loadTaxonomy(tree)` / `sp.tags.tag(name, opts)` / `sp.tags.delete(name)`
-- `sp.setVectorStore(store)` / `sp.indexTagVector(tag)` / `sp.findSimilarTags(tag)`
+- `await tag.addParent(parent)` / `await tag.addSynonym(synonym)` / `await tag.setDisplayName(name, lang)`
+- `await sp.tags.configureSearch({ vectorStore, embeddingProvider })` / `await sp.tags.search(query, options)`
 
 ### Package DSL (`SemanticPackage`)
 - `sp.createEntity(eDcr, fields, superSetAllowed?, cutExtraFields?, tags?)`

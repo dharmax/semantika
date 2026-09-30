@@ -184,18 +184,19 @@ export abstract class SemanticArtifact {
             if (currentSet.delete(rawName)) modified = true;
         }
         if (!modified) return this;
-        this._tags = Array.from(currentSet);
+        const next = Array.from(currentSet);
 
         const col = await this.getCollection();
         if (col) {
             const version = (this as any)._version;
             if (version !== undefined) {
-                await col.updateDocument(this.id, { _tags: this._tags }, version);
+                await col.updateDocument(this.id, { _tags: next }, version);
                 (this as any)._version = version + 1;
             } else {
-                await col.updateDocumentUnsafe(this.id, { _tags: this._tags });
+                await col.updateDocumentUnsafe(this.id, { _tags: next });
             }
         }
+        this._tags = next;
         return this;
     }
 }

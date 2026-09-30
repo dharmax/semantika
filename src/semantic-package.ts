@@ -14,9 +14,8 @@ import {Mutex} from "./utils/mutex.js";
 import {ArtifactCollection} from "./artifact-collection.js";
 import {EntityCollection} from "./entities-collection.js";
 import {IPredicateRecord, PredicateCollection} from "./predicates-collection.js";
-import {Tag, TagTaxonomy, TagOptions} from "./tag.js";
+import {Tag, TagTaxonomy} from "./tag.js";
 import {evaluateTagQuery, TagQueryExpression} from "./tag-query.js";
-import {IVectorStore, IEmbeddingProvider} from "./vector-store.js";
 
 /**
  * A Semantic package represents and contains semantic artifacts and provides the API to manage them and query them.
@@ -26,8 +25,6 @@ import {IVectorStore, IEmbeddingProvider} from "./vector-store.js";
 export class SemanticPackage {
     readonly ontology: Ontology;
     readonly tags: TagTaxonomy;
-    vectorStore?: IVectorStore;
-    embeddingProvider?: IEmbeddingProvider;
     private collectionManager: CollectionManager;
     static semanticPackages: { [name: string]: SemanticPackage } = {};
 
@@ -191,11 +188,13 @@ export class SemanticPackage {
     }
 
     async deletePredicate(predicate: Predicate) {
+        await this.ready();
         const pCol = await this.collectionManager.predicateCollection(predicate);
         return pCol.deleteById(predicate.id);
     }
 
     async deleteAllEntityPredicates(entityId: string) {
+        await this.ready();
         const pcol = await this.collectionManager.predicateCollection();
         return pcol.deleteByQuery({
             $or: [{ sourceId: entityId }, { targetId: entityId }]
@@ -208,6 +207,7 @@ export class SemanticPackage {
         entityId?: string,
         opts: IFindPredicatesOptions = {}
     ): Promise<Predicate[]> {
+        await this.ready();
         return <Promise<Predicate[]>>this.loadPredicates(incoming, predicate, entityId, opts, null);
     }
 
@@ -218,6 +218,7 @@ export class SemanticPackage {
         opts: IFindPredicatesOptions = {},
         pagination: IReadOptions
     ): Promise<IReadResult> {
+        await this.ready();
         return <Promise<IReadResult>>this.loadPredicates(incoming, predicate, entityId, opts, pagination);
     }
 
@@ -296,6 +297,7 @@ export class SemanticPackage {
         bidirectional: boolean,
         predicateName?: string
     ): Promise<Predicate[]> {
+        await this.ready();
         if (!source || !target) return [];
         const predicates = await this.collectionManager.predicateCollection();
         const sourceId = source["id"] || source;
@@ -371,6 +373,7 @@ export class SemanticPackage {
             limit?: number;
         } = {}
     ): Promise<{ entities: AbstractEntity[]; predicates: Predicate[] }> {
+        await this.ready();
         const rootId = typeof startId === "string" ? startId : startId.id;
         const maxDepth = options.maxDepth ?? 1;
         const direction = options.direction ?? "both";
@@ -427,62 +430,6 @@ export class SemanticPackage {
         }
 
         return { entities, predicates };
-    }
-
-    setVectorStore(store: IVectorStore): this {
-        this.vectorStore = store;
-        return this;
-    }
-
-    setEmbeddingProvider(provider: IEmbeddingProvider): this {
-        this.embeddingProvider = provider;
-        return this;
-    }
-
-    async indexTagVector(tag: Tag | string, vector?: number[]): Promise<void> {
-        if (!this.vectorStore) return;
-        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
-        if (!tagObj) return;
-        let vec = vector || tagObj.embedding;
-        if (!vec && this.embeddingProvider) {
-            vec = await this.embeddingProvider.embed(
-                tagObj.name + (tagObj.description ? `: ${tagObj.description}` : "")
-            );
-            tagObj.embedding = vec;
-        }
-        if (vec) {
-            await this.vectorStore.upsert(tagObj.name, vec, {
-                name: tagObj.name,
-                description: tagObj.description,
-                parents: Array.from(tagObj.parents).map(p => p.name)
-            });
-        }
-    }
-
-    async findSimilarTags(
-        tag: Tag | string,
-        options: { limit?: number; minScore?: number } = {}
-    ): Promise<Array<{ tag: Tag; score: number }>> {
-        if (!this.vectorStore) return [];
-        const tagObj = typeof tag === "string" ? this.tags.get(tag) : tag;
-        if (!tagObj) return [];
-        let queryVec = tagObj.embedding;
-        if (!queryVec && this.embeddingProvider) {
-            queryVec = await this.embeddingProvider.embed(tagObj.name);
-        }
-        if (!queryVec) return [];
-
-        const requestedLimit = options.limit ?? 10;
-        const queryOptions = {
-            ...options,
-            limit: requestedLimit + 1
-        };
-        const hits = await this.vectorStore.query(queryVec, queryOptions);
-        return hits
-            .filter(h => h.id !== tagObj.name)
-            .slice(0, requestedLimit)
-            .map(h => ({tag: this.tags.get(h.id), score: h.score}))
-            .filter((hit): hit is {tag: Tag; score: number} => !!hit.tag);
     }
 
     async findEntitiesByTag<T extends AbstractEntity = AbstractEntity>(

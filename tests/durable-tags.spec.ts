@@ -11,6 +11,28 @@ const links = new PredicateDcr("links");
 const ontology = {entityDcrs: [Note.dcr], predicateDcrs: [links]};
 
 describe("durable tag registry", () => {
+    it("loads a declarative multi-parent taxonomy idempotently", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const sp = new SemanticPackage("tree", ontology, storage);
+        await sp.ready();
+        const tree = {
+            Technology: {
+                $abstract: true,
+                Backend: {Database: {$synonym: "data store"}},
+                Storage: {Database: {}}
+            }
+        };
+        await sp.tags.defineTaxonomy(tree);
+        await sp.tags.defineTaxonomy(tree);
+        expect(sp.tags.all()).toHaveLength(4);
+        expect(sp.tags.get("data store")).toBe(sp.tags.get("Database"));
+        expect([...sp.tags.get("Database")!.parents].map(t => t.name).sort()).toEqual(["Backend", "Storage"]);
+        sp.tags.get("Database")!.parents.clear();
+        expect(sp.tags.get("Database")!.parents.size).toBe(2);
+        await storage.close();
+    });
+
     it("rehydrates aliases, ancestry, constraints and safe deletion from file-backed SQLite", async () => {
         const dir = await mkdtemp(join(tmpdir(), "semantika-tags-"));
         const path = join(dir, "tags.db");

@@ -6,7 +6,7 @@ kanban-plugin: board
 
 ## Backlog
 
-- [ ] **TKT-0H3S**: TagTaxonomy semantic search and automatic vector lifecycle
+- No items
 
 ## Todo
 
@@ -28,6 +28,7 @@ kanban-plugin: board
 - [x] **TKT-005**: Tag options: abstract, exclusive, default subsumption, synonyms & antonyms
   - Summary: Implement tag options: abstract (cannot be directly placed on artifacts, only descendants), exclusive (at most one descendant can be placed on an artifact), default taxonomy subsumption on hasTag, multi-language synonyms with default English display name, and antonyms.
 - [x] **TKT-EFW6**: Durable semantic tag registry
+- [x] **TKT-0H3S**: TagTaxonomy semantic search and automatic vector lifecycle
 
 ## Blocked
 

@@ -35,20 +35,58 @@ interface TagRecord {
 
 const normalize = (value: string) => value.trim().normalize("NFKC").toLowerCase();
 const nameOf = (value: Tag | string) => typeof value === "string" ? value : value.name;
-
-export class Tag {
-    readonly parents = new Set<Tag>();
-    readonly children = new Set<Tag>();
-    readonly antonyms = new Set<Tag>();
+interface TagState {
     description?: string;
     metadata?: Record<string, any>;
     embedding?: number[];
-    abstract = false;
-    exclusive = false;
-    displayNames: Record<string, string> = {};
-    synonyms: Record<string, Set<string>> = {};
+    abstract: boolean;
+    exclusive: boolean;
+    displayNames: Record<string, string>;
+    synonyms: Record<string, Set<string>>;
+    parents: Set<Tag>;
+    children: Set<Tag>;
+    antonyms: Set<Tag>;
+    declaredAntonyms: string[];
+}
+const installState = Symbol("installTagState");
+const emptyState = (): TagState => ({
+    abstract: false, exclusive: false, displayNames: {}, synonyms: {},
+    parents: new Set(), children: new Set(), antonyms: new Set(), declaredAntonyms: []
+});
 
-    constructor(readonly semanticPackage: SemanticPackage, readonly name: string) {}
+export class Tag {
+    #state: TagState = emptyState();
+    constructor(readonly semanticPackage: SemanticPackage, readonly name: string) {
+        Object.defineProperty(this, "name", {value: name, enumerable: true});
+    }
+    [installState](state: TagState): void { this.#state = state; }
+    private get state(): TagState { return this.#state; }
+    snapshot(): TagRecord {
+        const state = this.#state;
+        return {
+            name: this.name, description: state.description,
+            metadata: state.metadata && structuredClone(state.metadata),
+            embedding: state.embedding?.slice(), abstract: state.abstract, exclusive: state.exclusive,
+            displayNames: {...state.displayNames},
+            synonyms: Object.fromEntries(Object.entries(state.synonyms).map(([lang, values]) => [lang, [...values]])),
+            parents: [...state.parents].map(parent => parent.name),
+            antonyms: [...state.declaredAntonyms]
+        };
+    }
+    get parents(): Set<Tag> { return new Set(this.state.parents); }
+    get children(): Set<Tag> { return new Set(this.state.children); }
+    get antonyms(): Set<Tag> { return new Set(this.state.antonyms); }
+    get description(): string | undefined { return this.state.description; }
+    get metadata(): Record<string, any> | undefined {
+        return this.state.metadata ? structuredClone(this.state.metadata) : undefined;
+    }
+    get embedding(): number[] | undefined { return this.state.embedding?.slice(); }
+    get abstract(): boolean { return this.state.abstract; }
+    get exclusive(): boolean { return this.state.exclusive; }
+    get displayNames(): Record<string, string> { return {...this.state.displayNames}; }
+    get synonyms(): Record<string, Set<string>> {
+        return Object.fromEntries(Object.entries(this.state.synonyms).map(([lang, values]) => [lang, new Set(values)]));
+    }
     get id(): string { return this.name; }
     get displayName(): string { return this.displayNames.en || Object.values(this.displayNames)[0] || this.name; }
     getDisplayName(lang = "en"): string { return this.displayNames[lang] || this.displayName; }
@@ -86,11 +124,12 @@ export class Tag {
         return this;
     }
     async addAntonym(value: Tag | string): Promise<this> {
+        if (this.isAntonymOf(value)) return this;
         await this.semanticPackage.tags.update(this.name, {antonyms: [...this.antonyms].map(a => a.name).concat(nameOf(value))});
         return this;
     }
     async removeAntonym(value: Tag | string): Promise<this> {
-        await this.semanticPackage.tags.update(this.name, {antonyms: [...this.antonyms].map(a => a.name).filter(a => a !== nameOf(value))});
+        await this.semanticPackage.tags.unlinkAntonym(this.name, nameOf(value));
         return this;
     }
     isAntonymOf(value: Tag | string): boolean { return [...this.antonyms].some(a => a.name === nameOf(value)); }
@@ -126,7 +165,10 @@ export class Tag {
     }
     async count(options?: {includeDescendants?: boolean}): Promise<number> { return (await this.artifacts(options)).length; }
     async similar(options?: {limit?: number; minScore?: number}): Promise<Array<{tag: Tag; score: number}>> {
-        return this.semanticPackage.findSimilarTags(this, options);
+        const limit = options?.limit ?? 10;
+        const hits = await this.semanticPackage.tags.search(this.name, {...options, limit: limit + 1});
+        return hits.filter(hit => hit.match === "semantic" && hit.tag !== this)
+            .slice(0, limit).map(hit => ({tag: hit.tag, score: hit.score!}));
     }
     toJSON() {
         return {
@@ -142,7 +184,6 @@ export class Tag {
 export class TagTaxonomy {
     private readonly tagMap = new Map<string, Tag>();
     private aliases = new Map<string, string>();
-    private records = new Map<string, TagRecord>();
     private collection?: ICollection;
     private hydration?: Promise<void>;
     private hydrated = false;
@@ -150,6 +191,9 @@ export class TagTaxonomy {
     private searchConfig?: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider};
 
     constructor(readonly semanticPackage: SemanticPackage) {}
+    private get records(): Map<string, TagRecord> {
+        return new Map([...this.tagMap.values()].map(tag => [tag.name, this.clean(tag.snapshot())]));
+    }
     private assertReady(): void {
         if (!this.hydrated) throw new Error("Tag taxonomy is not ready; await sp.ready() first.");
     }
@@ -171,17 +215,21 @@ export class TagTaxonomy {
     }
     private clean(record: TagRecord): TagRecord {
         return {
-            name: record.name, description: record.description, metadata: record.metadata,
-            embedding: record.embedding, abstract: record.abstract, exclusive: record.exclusive,
-            displayNames: record.displayNames || {}, synonyms: record.synonyms || {},
-            parents: record.parents || [], antonyms: record.antonyms || []
+            name: record.name, description: record.description,
+            metadata: record.metadata && structuredClone(record.metadata),
+            embedding: record.embedding?.slice(), abstract: record.abstract, exclusive: record.exclusive,
+            displayNames: {...record.displayNames},
+            synonyms: Object.fromEntries(Object.entries(record.synonyms || {}).map(([lang, values]) => [lang, values.slice()])),
+            parents: [...(record.parents || [])], antonyms: [...(record.antonyms || [])]
         };
     }
     private fromOptions(name: string, options: TagOptions, old?: TagRecord): TagRecord {
         const record = this.clean(old || {name});
         if (options.description !== undefined) record.description = options.description;
-        if (options.metadata !== undefined) record.metadata = {...record.metadata, ...options.metadata};
-        if (options.embedding !== undefined) record.embedding = options.embedding;
+        if (options.metadata !== undefined) record.metadata = {...record.metadata, ...structuredClone(options.metadata)};
+        if (options.embedding !== undefined) record.embedding = options.embedding.slice();
+        else if (options.description !== undefined || options.displayName !== undefined
+            || options.synonym !== undefined || options.synonyms !== undefined) record.embedding = undefined;
         if (options.abstract !== undefined) record.abstract = options.abstract;
         if (options.exclusive !== undefined) record.exclusive = options.exclusive;
         if (options.displayName !== undefined) record.displayNames = {
@@ -218,6 +266,9 @@ export class TagTaxonomy {
             }
             for (const antonym of record.antonyms || []) {
                 if (antonym === name || !records.has(antonym)) throw new Error(`Invalid antonym '${antonym}' for tag '${name}'.`);
+                if (records.get(antonym)!.antonyms?.includes(name)) {
+                    throw new Error(`Duplicate antonym relation between '${name}' and '${antonym}'.`);
+                }
             }
         }
         const done = new Set<string>();
@@ -237,29 +288,29 @@ export class TagTaxonomy {
         const aliases = this.validate(records);
         for (const [name] of this.tagMap) if (!records.has(name)) this.tagMap.delete(name);
         for (const name of records.keys()) if (!this.tagMap.has(name)) this.tagMap.set(name, new Tag(this.semanticPackage, name));
+        const states = new Map<string, TagState>();
         for (const [name, record] of records) {
-            const tag = this.tagMap.get(name)!;
-            tag.description = record.description;
-            tag.metadata = record.metadata;
-            tag.embedding = record.embedding;
-            tag.abstract = record.abstract || false;
-            tag.exclusive = record.exclusive || false;
-            tag.displayNames = {...record.displayNames};
-            tag.synonyms = Object.fromEntries(Object.entries(record.synonyms || {}).map(([lang, values]) => [lang, new Set(values)]));
-            tag.parents.clear(); tag.children.clear(); tag.antonyms.clear();
+            states.set(name, {
+                description: record.description, metadata: record.metadata && structuredClone(record.metadata),
+                embedding: record.embedding?.slice(), abstract: record.abstract || false,
+                exclusive: record.exclusive || false, displayNames: {...record.displayNames},
+                synonyms: Object.fromEntries(Object.entries(record.synonyms || {}).map(([lang, values]) => [lang, new Set(values)])),
+                parents: new Set(), children: new Set(), antonyms: new Set(),
+                declaredAntonyms: [...(record.antonyms || [])]
+            });
         }
         for (const [name, record] of records) {
-            const tag = this.tagMap.get(name)!;
+            const state = states.get(name)!;
             for (const parent of record.parents || []) {
                 const parentTag = this.tagMap.get(parent)!;
-                tag.parents.add(parentTag); parentTag.children.add(tag);
+                state.parents.add(parentTag); states.get(parent)!.children.add(this.tagMap.get(name)!);
             }
             for (const antonym of record.antonyms || []) {
                 const other = this.tagMap.get(antonym)!;
-                tag.antonyms.add(other); other.antonyms.add(tag);
+                state.antonyms.add(other); states.get(antonym)!.antonyms.add(this.tagMap.get(name)!);
             }
         }
-        this.records = records;
+        for (const [name, state] of states) this.tagMap.get(name)![installState](state);
         this.aliases = aliases;
     }
     private enqueue<T>(work: () => Promise<T>): Promise<T> {
@@ -277,6 +328,7 @@ export class TagTaxonomy {
             this.validate(next);
             await this.collection!.append({_id: name, ...record});
             this.install(next);
+            await this.refreshVector(name);
             return this.tagMap.get(name)!;
         });
     }
@@ -290,6 +342,7 @@ export class TagTaxonomy {
             this.validate(next);
             await this.collection!.updateDocument(name, next.get(name)!);
             this.install(next);
+            await this.refreshVector(name);
             return this.tagMap.get(name)!;
         });
     }
@@ -305,30 +358,100 @@ export class TagTaxonomy {
             const next = new Map(this.records);
             next.delete(name);
             this.install(next);
+            if (this.searchConfig) await this.searchConfig.vectorStore.delete(name);
             return true;
+        });
+    }
+    async unlinkAntonym(name: string, other: string): Promise<void> {
+        await this.ready();
+        const owner = this.records.get(name)?.antonyms?.includes(other) ? name
+            : this.records.get(other)?.antonyms?.includes(name) ? other : undefined;
+        if (!owner) return;
+        const opposite = owner === name ? other : name;
+        await this.update(owner, {
+            antonyms: (this.records.get(owner)!.antonyms || []).filter(value => value !== opposite)
         });
     }
     async defineTaxonomy(tree: Record<string, any>): Promise<void> {
         await this.ready();
-        const walk = async (nodes: Record<string, any>, parent?: string) => {
+        const definitions = new Map<string, TagOptions>();
+        const walk = (nodes: Record<string, any>, parent?: string) => {
             for (const [name, value] of Object.entries(nodes)) {
                 if (name.startsWith("$")) continue;
                 const data = value && typeof value === "object" ? value : {};
+                const previous = definitions.get(name);
                 const options: TagOptions = {
                     abstract: data.$abstract, exclusive: data.$exclusive, displayName: data.$displayName,
                     synonym: data.$synonym, synonyms: data.$synonyms, description: data.$description,
-                    parents: [...(parent ? [parent] : []), ...(data.$parent ? [data.$parent] : []), ...(data.$parents || [])],
+                    parents: [...new Set([
+                        ...(previous?.parents || []), ...(parent ? [parent] : []),
+                        ...(data.$parent ? [data.$parent] : []), ...(data.$parents || [])
+                    ])],
                     antonym: data.$antonym, antonyms: data.$antonyms
                 };
-                if (this.records.has(name)) await this.update(name, options);
-                else await this.define(name, options);
-                await walk(data, name);
+                definitions.set(name, {...previous, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined))});
+                walk(data, name);
             }
         };
-        await walk(tree);
+        walk(tree);
+        const proposed = new Map(this.records);
+        for (const name of definitions.keys()) if (!proposed.has(name)) proposed.set(name, this.clean({name}));
+        for (const [name, options] of definitions) {
+            options.parents = [...new Set([...(proposed.get(name)!.parents || []), ...(options.parents || [])])];
+            options.antonyms = [...new Set([
+                ...(proposed.get(name)!.antonyms || []), ...(options.antonym ? [options.antonym] : []),
+                ...(options.antonyms || [])
+            ])];
+            delete options.antonym;
+            proposed.set(name, this.fromOptions(name, options, proposed.get(name)));
+        }
+        this.validate(proposed);
+        for (const name of definitions.keys()) if (!this.records.has(name)) await this.define(name);
+        for (const [name, options] of definitions) await this.update(name, options);
     }
     get(value: string): Tag | undefined { this.assertReady(); return this.tagMap.get(this.aliases.get(normalize(value)) || ""); }
     has(value: string): boolean { return this.get(value) !== undefined; }
     all(): Tag[] { this.assertReady(); return [...this.tagMap.values()]; }
     toJSON(): Record<string, any> { return Object.fromEntries(this.all().map(tag => [tag.name, tag.toJSON()])); }
+
+    private semanticText(tag: Tag): string {
+        return [
+            tag.name, ...Object.values(tag.displayNames),
+            ...Object.values(tag.synonyms).flatMap(values => [...values]),
+            tag.description
+        ].filter(Boolean).join("\n");
+    }
+    private async refreshVector(name: string): Promise<void> {
+        if (!this.searchConfig) return;
+        const tag = this.tagMap.get(name)!;
+        const vector = tag.embedding || await this.searchConfig.embeddingProvider.embed(this.semanticText(tag));
+        await this.searchConfig.vectorStore.upsert(name, vector);
+    }
+    async configureSearch(config: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider}): Promise<void> {
+        await this.enqueue(async () => {
+            await this.ready();
+            this.searchConfig = config;
+            for (const name of this.records.keys()) await this.refreshVector(name);
+        });
+    }
+    async search(query: string, options: {limit?: number; minScore?: number} = {}): Promise<Array<{tag: Tag; match: "exact" | "semantic"; score?: number}>> {
+        await this.ready();
+        await this.mutation;
+        const limit = options.limit ?? 10;
+        if (limit <= 0) return [];
+        const exact = this.get(query);
+        const hits: Array<{tag: Tag; match: "exact" | "semantic"; score?: number}> =
+            exact ? [{tag: exact, match: "exact"}] : [];
+        if (!this.searchConfig || hits.length >= limit) return hits;
+        const vector = await this.searchConfig.embeddingProvider.embed(query);
+        const results = await this.searchConfig.vectorStore.query(vector, {
+            limit: limit + 1, minScore: options.minScore
+        });
+        for (const result of results) {
+            const tag = this.tagMap.get(result.id);
+            if (tag && tag !== exact) hits.push({tag, match: "semantic", score: result.score});
+            if (hits.length >= limit) break;
+        }
+        return hits;
+    }
 }

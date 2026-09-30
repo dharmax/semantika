@@ -235,7 +235,6 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
 
     it("should support pluggable VectorDB with InMemoryVectorStore and semantic search", async () => {
         const vStore = new InMemoryVectorStore();
-        sp.setVectorStore(vStore);
 
         // Synthetic 3-dimensional embeddings for testing
         // ml & nlp are close in space; security is orthogonal
@@ -243,9 +242,16 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         const tNlp = await sp.tags.define('natural-language-processing', { embedding: [0.85, 0.85, 0.15] });
         const tSec = await sp.tags.define('cyber-security', { embedding: [0.1, 0.1, 0.95] });
 
-        await sp.indexTagVector(tMl);
-        await sp.indexTagVector(tNlp);
-        await sp.indexTagVector(tSec);
+        await sp.tags.configureSearch({
+            vectorStore: vStore,
+            embeddingProvider: {
+                async embed(text) {
+                    if (text.includes('cyber-security')) return [0.1, 0.1, 0.95];
+                    if (text.includes('machine-learning')) return [0.9, 0.8, 0.1];
+                    return [0, 0, 1];
+                }
+            }
+        });
 
         // Find tags similar to machine-learning
         const similarToMl = await tMl.similar();
@@ -259,7 +265,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(secScore).toBeLessThan(0.4);
 
         // Direct query through semantic package
-        const hits = await sp.findSimilarTags('cyber-security', { limit: 1 });
+        const hits = await sp.tags.search('cyber-security', { limit: 1 });
         expect(hits.length).toBe(1);
     });
 
@@ -541,6 +547,4 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
         expect(json['machine-learning'].displayName).toBe('Machine Learning');
     });
 });
-
-
 
