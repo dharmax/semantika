@@ -6,10 +6,13 @@ kanban-plugin: board
 
 ## Backlog
 
-- No items
+- [ ] **TKT-007**: TagTaxonomy semantic search + automatic vector lifecycle
+  - Summary: Implement Gate 2 of docs/tags/PLAN.md. Search arbitrary text without creating tags; make vector indexing a derived TagTaxonomy lifecycle concern.
 
 ## Todo
 
+- [ ] **TKT-006**: Durable semantic tag registry
+  - Summary: Implement Gate 1 of docs/tags/PLAN.md: persistent TagRecords, hydration/ready boundary, exact alias index, honest awaitable mutation, safe deletion, and doc.tag(..., { replace: true }) for exclusive groups.
 - [ ] **TKT-001**: Explore codebase and run diagnostics
   - Summary: Review initial AST+ graph index and verify project health with `aiwf doctor`.
 
