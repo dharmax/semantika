@@ -14,3 +14,5 @@ Make Semantika's tag/taxonomy/synonym semantics truly persistent and lifecycle-s
 ### Linked Tickets
 - **TKT-006** [Todo]: Durable TagRecord registry, hydration, mutation API, alias integrity, and exclusive-tag replacement.
 - **TKT-007** [Backlog]: TagTaxonomy-owned non-mutating semantic search and automatic vector lifecycle.
+
+
