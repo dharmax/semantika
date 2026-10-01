@@ -43,13 +43,21 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
             entityDcrs: [Document.dcr, Service.dcr],
             predicateDcrs: [dependsOn, references]
         }, storage);
+        await sp.ready();
     });
+
+    async function ensureTags(...names: string[]) {
+        for (const name of names) {
+            if (!sp.tags.has(name)) await sp.tags.define(name);
+        }
+    }
 
     afterAll(async () => {
         await storage.close();
     });
 
     it("should tag and untag entities with persistence across reloads", async () => {
+        await ensureTags('ai', 'research', 'urgent', 'draft');
         const doc = await sp.createEntity<Document>(Document.dcr, { title: 'Whitepaper' }, false, true, ['ai', 'research']);
 
         expect(doc.hasTag('ai')).toBe(true);
@@ -76,6 +84,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should tag and untag predicates with persistence", async () => {
+        await ensureTags('rpc', 'critical', 'internal');
         const svc1 = await sp.createEntity<Service>(Service.dcr, { name: 'AuthService' });
         const svc2 = await sp.createEntity<Service>(Service.dcr, { name: 'DbService' });
 
@@ -270,6 +279,7 @@ describe("Tagging Mechanism, Boolean Query Engine & Neuro-Symbolic Taxonomy", ()
     });
 
     it("should filter predicates using tagQuery in findPredicates", async () => {
+        await ensureTags('http', 'critical', 'udp', 'low-priority');
         const s1 = await sp.createEntity<Service>(Service.dcr, { name: 'Gateway' });
         const s2 = await sp.createEntity<Service>(Service.dcr, { name: 'Payment' });
         const s3 = await sp.createEntity<Service>(Service.dcr, { name: 'Logger' });

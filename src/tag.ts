@@ -465,6 +465,7 @@ export class TagTaxonomy {
     async configureSearch(config: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider}): Promise<void> {
         await this.enqueue(async () => {
             await this.ready();
+            this.searchConfig = undefined;
             for (const name of this.records.keys()) await this.indexVector(name, config);
             this.searchConfig = config;
         });

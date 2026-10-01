@@ -50,6 +50,8 @@ describe("tag search lifecycle", () => {
         expect(await sp.tags.search("gpu server")).toEqual([]);
         await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
         expect((await sp.tags.search("gpu server", {minScore: 0.9}))[0].tag).toBe(sp.tags.get("Compute"));
+        await expect(sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: broken})).rejects.toThrow("no embeddings");
+        expect(await sp.tags.search("gpu server")).toEqual([]);
         await storage.close();
     });
 

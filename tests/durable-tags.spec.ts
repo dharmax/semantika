@@ -94,6 +94,8 @@ describe("durable tag registry", () => {
         const doc = await sp.createEntity<Note>(Note.dcr, {title: "known"});
         await expect(doc.tag("missing")).rejects.toThrow("Unknown tag");
         await expect(sp.createEntity<Note>(Note.dcr, {title: "bad"}, false, true, ["missing"])).rejects.toThrow("Unknown tag");
+        const other = await sp.createEntity<Note>(Note.dcr, {title: "other"});
+        await expect(sp.createPredicate(doc, links, other, {}, {}, ["missing"])).rejects.toThrow("Unknown tag");
         await doc.tag("alias");
         expect(doc.tagList).toEqual(["Known"]);
         await storage.close();
