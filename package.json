@@ -20,10 +20,6 @@
     "./mongo": {
       "types": "./dist/storage/mongo-store/index.d.ts",
       "import": "./dist/storage/mongo-store/index.js"
-    },
-    "./vector-store": {
-      "types": "./dist/vector-store.d.ts",
-      "import": "./dist/vector-store.js"
     }
   },
   "scripts": {

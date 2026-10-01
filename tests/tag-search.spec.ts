@@ -13,17 +13,6 @@ const embedder = {
 };
 
 describe("tag search lifecycle", () => {
-    it("provides its own derived vector store by default", async () => {
-        const storage = new SqliteStore(":memory:");
-        await storage.connect();
-        const sp = new SemanticPackage("default-vectors", {entityDcrs: [], predicateDcrs: []}, storage);
-        await sp.ready();
-        await sp.tags.define("Compute", {description: "gpu server"});
-        await sp.tags.configureSearch({embeddingProvider: embedder});
-        expect((await sp.tags.search("gpu server", {minScore: 0.9}))[0].tag).toBe(sp.tags.get("Compute"));
-        await storage.close();
-    });
-
     it("does not let derived-index failure falsify committed semantic state", async () => {
         const storage = new SqliteStore(":memory:");
         await storage.connect();
