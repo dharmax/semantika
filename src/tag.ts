@@ -3,7 +3,7 @@ import type {AbstractEntity} from "./abstract-entity.js";
 import type {Predicate} from "./predicate.js";
 import type {SemanticArtifact} from "./semantic-artifact.js";
 import type {ICollection} from "./storage/storage.js";
-import type {IEmbeddingProvider, IVectorStore} from "./vector-store.js";
+import {InMemoryVectorStore, type IEmbeddingProvider, type IVectorStore} from "./vector-store.js";
 
 export interface TagOptions {
     description?: string;
@@ -467,12 +467,16 @@ export class TagTaxonomy {
             if (this.searchConfig === config) this.searchConfig = undefined;
         }
     }
-    async configureSearch(config: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider}): Promise<void> {
+    async configureSearch(config: {vectorStore?: IVectorStore; embeddingProvider: IEmbeddingProvider}): Promise<void> {
         await this.enqueue(async () => {
             await this.ready();
+            const resolved = {
+                vectorStore: config.vectorStore ?? new InMemoryVectorStore(),
+                embeddingProvider: config.embeddingProvider
+            };
             this.searchConfig = undefined;
-            for (const name of this.records.keys()) await this.indexVector(name, config);
-            this.searchConfig = config;
+            for (const name of this.records.keys()) await this.indexVector(name, resolved);
+            this.searchConfig = resolved;
         });
     }
     async search(query: string, options: {limit?: number; minScore?: number} = {}): Promise<Array<{tag: Tag; match: "exact" | "semantic"; score?: number}>> {
