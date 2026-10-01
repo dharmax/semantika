@@ -17,7 +17,10 @@ export function validateArtifactTags(
     if (newTagNames) {
         for (const name of newTagNames) {
             const tagObj = taxonomy.get(name);
-            if (tagObj?.abstract) {
+            if (!tagObj) {
+                throw new Error(`Unknown tag '${name}'. Define it in the tag registry before assigning it.`);
+            }
+            if (tagObj.abstract) {
                 throw new Error(
                     `Cannot tag artifact with abstract tag '${tagObj.name}'. Only its offspring may be placed on artifacts.`
                 );

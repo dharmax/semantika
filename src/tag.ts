@@ -49,6 +49,7 @@ interface TagState {
     declaredAntonyms: string[];
 }
 const installState = Symbol("installTagState");
+const tagRecordSnapshot = Symbol("tagRecordSnapshot");
 const emptyState = (): TagState => ({
     abstract: false, exclusive: false, displayNames: {}, synonyms: {},
     parents: new Set(), children: new Set(), antonyms: new Set(), declaredAntonyms: []
@@ -61,7 +62,7 @@ export class Tag {
     }
     [installState](state: TagState): void { this.#state = state; }
     private get state(): TagState { return this.#state; }
-    snapshot(): TagRecord {
+    [tagRecordSnapshot](): TagRecord {
         const state = this.#state;
         return {
             name: this.name, description: state.description,
@@ -125,7 +126,9 @@ export class Tag {
     }
     async addAntonym(value: Tag | string): Promise<this> {
         if (this.isAntonymOf(value)) return this;
-        await this.semanticPackage.tags.update(this.name, {antonyms: [...this.antonyms].map(a => a.name).concat(nameOf(value))});
+        await this.semanticPackage.tags.update(this.name, {
+            antonyms: [...this.state.declaredAntonyms, nameOf(value)]
+        });
         return this;
     }
     async removeAntonym(value: Tag | string): Promise<this> {
@@ -192,7 +195,7 @@ export class TagTaxonomy {
 
     constructor(readonly semanticPackage: SemanticPackage) {}
     private get records(): Map<string, TagRecord> {
-        return new Map([...this.tagMap.values()].map(tag => [tag.name, this.clean(tag.snapshot())]));
+        return new Map([...this.tagMap.values()].map(tag => [tag.name, this.clean(tag[tagRecordSnapshot]())]));
     }
     private assertReady(): void {
         if (!this.hydrated) throw new Error("Tag taxonomy is not ready; await sp.ready() first.");
@@ -358,7 +361,7 @@ export class TagTaxonomy {
             const next = new Map(this.records);
             next.delete(name);
             this.install(next);
-            if (this.searchConfig) await this.searchConfig.vectorStore.delete(name);
+            await this.removeVector(name);
             return true;
         });
     }
@@ -421,17 +424,49 @@ export class TagTaxonomy {
             tag.description
         ].filter(Boolean).join("\n");
     }
-    private async refreshVector(name: string): Promise<void> {
-        if (!this.searchConfig) return;
+    private vectorId(name: string): string {
+        return `${encodeURIComponent(this.semanticPackage.name)}::${encodeURIComponent(name)}`;
+    }
+    private tagNameFromVectorId(id: string): string | undefined {
+        const prefix = `${encodeURIComponent(this.semanticPackage.name)}::`;
+        return id.startsWith(prefix) ? decodeURIComponent(id.slice(prefix.length)) : undefined;
+    }
+    private async indexVector(
+        name: string,
+        config: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider}
+    ): Promise<void> {
         const tag = this.tagMap.get(name)!;
-        const vector = tag.embedding || await this.searchConfig.embeddingProvider.embed(this.semanticText(tag));
-        await this.searchConfig.vectorStore.upsert(name, vector);
+        const vector = tag.embedding || await config.embeddingProvider.embed(this.semanticText(tag));
+        await config.vectorStore.upsert(this.vectorId(name), vector, {
+            semanticPackage: this.semanticPackage.name,
+            tagName: name
+        });
+    }
+    private async refreshVector(name: string): Promise<void> {
+        const config = this.searchConfig;
+        if (!config) return;
+        try {
+            await this.indexVector(name, config);
+        } catch {
+            // TagRecord is authoritative. Never report a committed semantic mutation as failed
+            // because its derived search index failed; disable semantic search instead of serving stale data.
+            if (this.searchConfig === config) this.searchConfig = undefined;
+        }
+    }
+    private async removeVector(name: string): Promise<void> {
+        const config = this.searchConfig;
+        if (!config) return;
+        try {
+            await config.vectorStore.delete(this.vectorId(name));
+        } catch {
+            if (this.searchConfig === config) this.searchConfig = undefined;
+        }
     }
     async configureSearch(config: {vectorStore: IVectorStore; embeddingProvider: IEmbeddingProvider}): Promise<void> {
         await this.enqueue(async () => {
             await this.ready();
+            for (const name of this.records.keys()) await this.indexVector(name, config);
             this.searchConfig = config;
-            for (const name of this.records.keys()) await this.refreshVector(name);
         });
     }
     async search(query: string, options: {limit?: number; minScore?: number} = {}): Promise<Array<{tag: Tag; match: "exact" | "semantic"; score?: number}>> {
@@ -442,13 +477,17 @@ export class TagTaxonomy {
         const exact = this.get(query);
         const hits: Array<{tag: Tag; match: "exact" | "semantic"; score?: number}> =
             exact ? [{tag: exact, match: "exact"}] : [];
-        if (!this.searchConfig || hits.length >= limit) return hits;
-        const vector = await this.searchConfig.embeddingProvider.embed(query);
-        const results = await this.searchConfig.vectorStore.query(vector, {
-            limit: limit + 1, minScore: options.minScore
+        const config = this.searchConfig;
+        if (!config || hits.length >= limit) return hits;
+        const vector = await config.embeddingProvider.embed(query);
+        const results = await config.vectorStore.query(vector, {
+            limit: limit + 1,
+            minScore: options.minScore,
+            filter: {semanticPackage: this.semanticPackage.name}
         });
         for (const result of results) {
-            const tag = this.tagMap.get(result.id);
+            const name = result.metadata?.tagName || this.tagNameFromVectorId(result.id);
+            const tag = name ? this.tagMap.get(name) : undefined;
             if (tag && tag !== exact) hits.push({tag, match: "semantic", score: result.score});
             if (hits.length >= limit) break;
         }

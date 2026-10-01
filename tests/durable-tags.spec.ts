@@ -85,6 +85,37 @@ describe("durable tag registry", () => {
         }
     });
 
+    it("rejects new orphan tag assignments while allowing registered aliases", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const sp = new SemanticPackage("registered-only", ontology, storage);
+        await sp.ready();
+        await sp.tags.define("Known", {synonym: "alias"});
+        const doc = await sp.createEntity<Note>(Note.dcr, {title: "known"});
+        await expect(doc.tag("missing")).rejects.toThrow("Unknown tag");
+        await expect(sp.createEntity<Note>(Note.dcr, {title: "bad"}, false, true, ["missing"])).rejects.toThrow("Unknown tag");
+        await doc.tag("alias");
+        expect(doc.tagList).toEqual(["Known"]);
+        await storage.close();
+    });
+
+    it("keeps persisted antonym ownership separate from the symmetric runtime view", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const sp = new SemanticPackage("antonym-owner", ontology, storage);
+        await sp.ready();
+        await sp.tags.define("A");
+        await sp.tags.define("B", {antonym: "A"});
+        await sp.tags.define("C");
+        await sp.tags.get("A")!.addAntonym("C");
+        expect(sp.tags.get("A")!.isAntonymOf("B")).toBe(true);
+        expect(sp.tags.get("A")!.isAntonymOf("C")).toBe(true);
+        await sp.tags.get("A")!.removeAntonym("B");
+        expect(sp.tags.get("A")!.isAntonymOf("B")).toBe(false);
+        expect(sp.tags.get("A")!.isAntonymOf("C")).toBe(true);
+        await storage.close();
+    });
+
     it("replaces only existing exclusive siblings and rejects other conflicts", async () => {
         const storage = new SqliteStore(":memory:");
         await storage.connect();

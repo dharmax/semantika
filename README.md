@@ -145,7 +145,7 @@ class Task extends AbstractEntity {
 
 ## 🏷️ Durable Tags and Semantic Search
 
-Tags are canonical names stored on artifacts. Their aliases, taxonomy and constraints live in a durable package registry. After constructing a package, call `await sp.ready()` before synchronous taxonomy reads. Async package operations wait for readiness automatically.
+Tags are canonical names stored on artifacts. Their aliases, taxonomy and constraints live in a durable package registry. New artifact assignments must resolve to a registered tag; define tags first rather than creating semantic identities implicitly. After constructing a package, call `await sp.ready()` before synchronous taxonomy reads. Async package operations wait for readiness automatically.
 
 ```ts
 const sp = new SemanticPackage('main', {

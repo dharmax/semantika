@@ -13,6 +13,63 @@ const embedder = {
 };
 
 describe("tag search lifecycle", () => {
+    it("does not let derived-index failure falsify committed semantic state", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const sp = new SemanticPackage("degraded", {entityDcrs: [], predicateDcrs: []}, storage);
+        await sp.ready();
+        await sp.tags.define("Compute", {description: "gpu"});
+        const vectors = new InMemoryVectorStore();
+        let fail = false;
+        const sometimesFailingEmbedder = {
+            async embed(text: string) {
+                if (fail) throw new Error("embed unavailable");
+                return embedder.embed(text);
+            }
+        };
+        await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: sometimesFailingEmbedder});
+        fail = true;
+        await expect(sp.tags.update("Compute", {description: "archive"})).resolves.toBe(sp.tags.get("Compute"));
+        expect(sp.tags.get("Compute")!.description).toBe("archive");
+        expect(await sp.tags.search("gpu server")).toEqual([]);
+        fail = false;
+        await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: sometimesFailingEmbedder});
+        expect((await sp.tags.search("archive", {minScore: 0.9}))[0].tag).toBe(sp.tags.get("Compute"));
+        await storage.close();
+    });
+
+    it("publishes search configuration only after a complete initial index", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const sp = new SemanticPackage("atomic-config", {entityDcrs: [], predicateDcrs: []}, storage);
+        await sp.ready();
+        await sp.tags.define("Compute", {description: "gpu server"});
+        const vectors = new InMemoryVectorStore();
+        const broken = {embed: async () => { throw new Error("no embeddings"); }};
+        await expect(sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: broken})).rejects.toThrow("no embeddings");
+        expect(await sp.tags.search("gpu server")).toEqual([]);
+        await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
+        expect((await sp.tags.search("gpu server", {minScore: 0.9}))[0].tag).toBe(sp.tags.get("Compute"));
+        await storage.close();
+    });
+
+    it("isolates tag vectors by semantic package when a vector store is shared", async () => {
+        const storage = new SqliteStore(":memory:");
+        await storage.connect();
+        const vectors = new InMemoryVectorStore();
+        const a = new SemanticPackage("package-a", {entityDcrs: [], predicateDcrs: []}, storage);
+        const b = new SemanticPackage("package-b", {entityDcrs: [], predicateDcrs: []}, storage);
+        await Promise.all([a.ready(), b.ready()]);
+        await a.tags.define("Compute", {description: "gpu server"});
+        await b.tags.define("Compute", {description: "archive"});
+        await a.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
+        await b.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
+        expect(vectors.size).toBe(2);
+        expect((await a.tags.search("gpu server", {minScore: 0.9}))[0].tag).toBe(a.tags.get("Compute"));
+        expect((await b.tags.search("archive", {minScore: 0.9}))[0].tag).toBe(b.tags.get("Compute"));
+        await storage.close();
+    });
+
     it("drops an explicit vector when semantic text changes", async () => {
         const storage = new SqliteStore(":memory:");
         await storage.connect();
@@ -22,7 +79,7 @@ describe("tag search lifecycle", () => {
         const vectors = new InMemoryVectorStore();
         await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
         await sp.tags.update("Compute", {description: "archive"});
-        expect((await vectors.get("Compute"))!.vector).toEqual(await embedder.embed("Compute\narchive"));
+        expect((await vectors.get("explicit::Compute"))!.vector).toEqual(await embedder.embed("Compute\narchive"));
         expect(sp.tags.get("Compute")!.embedding).toBeUndefined();
         await storage.close();
     });
@@ -63,9 +120,9 @@ describe("tag search lifecycle", () => {
             expect((await sp.tags.search("archive files", {minScore: 0.5}))[0].tag).toBe(compute);
 
             await sp.tags.remove("Unused");
-            expect(await vectors.get("Unused")).toBeNull();
+            expect(await vectors.get("search::Unused")).toBeNull();
             await sp.tags.remove("Compute");
-            expect(await vectors.get("Compute")).toBeNull();
+            expect(await vectors.get("search::Compute")).toBeNull();
             expect(await sp.tags.search("archive files", {minScore: 0.5})).toEqual([]);
             await reopenedStore.close();
         } finally {
