@@ -429,7 +429,12 @@ export class TagTaxonomy {
     }
     private tagNameFromVectorId(id: string): string | undefined {
         const prefix = `${encodeURIComponent(this.semanticPackage.name)}::`;
-        return id.startsWith(prefix) ? decodeURIComponent(id.slice(prefix.length)) : undefined;
+        if (!id.startsWith(prefix)) return undefined;
+        try {
+            return decodeURIComponent(id.slice(prefix.length));
+        } catch {
+            return undefined;
+        }
     }
     private async indexVector(
         name: string,
@@ -487,7 +492,7 @@ export class TagTaxonomy {
             filter: {semanticPackage: this.semanticPackage.name}
         });
         for (const result of results) {
-            const name = result.metadata?.tagName || this.tagNameFromVectorId(result.id);
+            const name = this.tagNameFromVectorId(result.id);
             const tag = name ? this.tagMap.get(name) : undefined;
             if (tag && tag !== exact) hits.push({tag, match: "semantic", score: result.score});
             if (hits.length >= limit) break;

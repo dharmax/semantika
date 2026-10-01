@@ -29,7 +29,8 @@ describe("tag search lifecycle", () => {
         };
         await sp.tags.configureSearch({vectorStore: vectors, embeddingProvider: sometimesFailingEmbedder});
         fail = true;
-        await expect(sp.tags.update("Compute", {description: "archive"})).resolves.toBe(sp.tags.get("Compute"));
+        const updated = await sp.tags.update("Compute", {description: "archive"});
+        expect(updated).toBe(sp.tags.get("Compute"));
         expect(sp.tags.get("Compute")!.description).toBe("archive");
         expect(await sp.tags.search("gpu server")).toEqual([]);
         fail = false;
@@ -67,6 +68,7 @@ describe("tag search lifecycle", () => {
         await a.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
         await b.tags.configureSearch({vectorStore: vectors, embeddingProvider: embedder});
         expect(vectors.size).toBe(2);
+        await vectors.upsert("package-a::%ZZ", await embedder.embed("gpu server"), {semanticPackage: "package-a"});
         expect((await a.tags.search("gpu server", {minScore: 0.9}))[0].tag).toBe(a.tags.get("Compute"));
         expect((await b.tags.search("archive", {minScore: 0.9}))[0].tag).toBe(b.tags.get("Compute"));
         await storage.close();
