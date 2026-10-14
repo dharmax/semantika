@@ -68,6 +68,62 @@ export class SqliteStore extends AbstractStorage {
         return true;
     }
 
+
+    /** Atomically persist prevalidated records. Collections must already be initialized.
+     * expectedVersion=null asserts absence; a positive version asserts the current record.
+     * This method never awaits or changes caller-owned entities. Returned records are fresh DTOs.
+     */
+    applyBatch(changes: ReadonlyArray<{
+        collectionName: string; id: string; expectedVersion: number | null;
+        record: Record<string, unknown> | null;
+    }>): Array<Record<string, unknown>> {
+        const activeTransaction = this.db.inTransaction ?? this.db.isTransaction;
+        if (activeTransaction !== false) throw new Error("Batch requires an independent native SQLite transaction.");
+        const keys = new Set<string>();
+        const prepared = changes.map(change => {
+            if (!/^[a-zA-Z0-9_-]+$/.test(change.collectionName) || !change.id)
+                throw new Error("Invalid batch collection or identity.");
+            if (change.expectedVersion !== null && (!Number.isSafeInteger(change.expectedVersion) || change.expectedVersion < 1))
+                throw new Error("Batch requires an exact positive version or explicit absence.");
+            if (change.record === null && change.expectedVersion === null)
+                throw new Error("Deletion requires an existing revision.");
+            const key = JSON.stringify([change.collectionName, change.id]);
+            if (keys.has(key)) throw new Error("Duplicate batch identity.");
+            keys.add(key);
+            const data = {...change.record};
+            for (const field of ["id", "_id", "_version", "_created", "_lastUpdate"]) delete data[field];
+            return {...change, data: JSON.stringify(data)};
+        });
+        const result: Array<Record<string, unknown>> = [];
+        this.db.exec("SAVEPOINT semantika_batch");
+        try {
+            for (const change of prepared) {
+                const table = '"' + change.collectionName + '"';
+                const old = this.db.prepare(`SELECT _version, _created FROM ${table} WHERE _id = ?`).get(change.id);
+                if ((old?._version ?? null) !== change.expectedVersion)
+                    throw new Error("Stale batch revision for " + change.id);
+                const now = new Date().toISOString();
+                if (change.record === null) {
+                    this.db.prepare(`DELETE FROM ${table} WHERE _id = ?`).run(change.id);
+                } else {
+                    const version = (old?._version ?? 0) + 1;
+                    const created = old?._created ?? now;
+                    if (old) this.db.prepare(`UPDATE ${table} SET data = ?, _version = ?, _lastUpdate = ? WHERE _id = ?`)
+                        .run(change.data, version, now, change.id);
+                    else this.db.prepare(`INSERT INTO ${table} (_id, _version, _created, _lastUpdate, data) VALUES (?, ?, ?, ?, ?)`)
+                        .run(change.id, version, created, now, change.data);
+                    result.push({...JSON.parse(change.data), _id: change.id, _version: version, _created: created, _lastUpdate: now});
+                }
+            }
+            this.db.exec("RELEASE SAVEPOINT semantika_batch");
+            return result;
+        } catch (error) {
+            this.db.exec("ROLLBACK TO SAVEPOINT semantika_batch");
+            this.db.exec("RELEASE SAVEPOINT semantika_batch");
+            throw error;
+        }
+    }
+
     async startSession(): Promise<StorageSession> {
         return {
             endSession: async () => {},
