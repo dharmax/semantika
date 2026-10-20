@@ -81,3 +81,67 @@ test("duplicate identities and invalid revisions fail before any writes", async 
     expect(() => storage.applyBatch([{...item, collectionName: 'rules"; DROP TABLE rules; --'}])).toThrow();
     expect(await collection.findById("A")).toMatchObject({name: "original", _version: 1});
 });
+
+
+test("assertion-only entries condition a multi-collection outcome without rewriting the asserted row", async () => {
+    await storage.getPhysicalCollection("proofs");
+    const rows = storage.applyBatch([
+        {collectionName: "rules", id: "A", expectedVersion: 1},
+        {collectionName: "rules", id: "absent", expectedVersion: null},
+        {collectionName: "proofs", id: "VERIFY", expectedVersion: null, record: {accepted: true}}
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(await collection.findById("A")).toMatchObject({name: "original", _version: 1});
+    expect(await collection.findById("absent")).toBeNull();
+    await collection.updateDocument("A", {name: "changed"}, 1);
+    expect(() => storage.applyBatch([
+        {collectionName: "proofs", id: "FALSE", expectedVersion: null, record: {accepted: true}},
+        {collectionName: "rules", id: "A", expectedVersion: 1}
+    ])).toThrow("Stale batch revision");
+    expect(await storage.makeBasicCollection("proofs").findById("FALSE")).toBeNull();
+});
+
+
+test("public entity and predicate collection names identify the actual SQLite batch collections", async () => {
+    const {SemanticPackage, EntityDcr, PredicateDcr, AbstractEntity} = await import("../src/index.js");
+    class ContractEntity extends AbstractEntity {}
+    const descriptor = new EntityDcr(ContractEntity, {}, "ContractEntity");
+    const relation = new PredicateDcr("links");
+    const sp = new SemanticPackage("batch-contract", {entityDcrs: [descriptor], predicateDcrs: [relation]}, storage);
+    await sp.ready();
+    const entities = await sp.collectionForEntityType(descriptor);
+    const predicates = await sp.predicateCollection(relation);
+    expect(typeof entities.name).toBe("string");
+    expect(typeof predicates.name).toBe("string");
+    const rows = storage.applyBatch([
+        {collectionName: entities.name, id: "E", expectedVersion: null, record: {title: "entity"}},
+        {collectionName: predicates.name, id: "P", expectedVersion: null, record: {
+            sourceId: "E", sourceType: "ContractEntity", predicateName: "links", targetId: "E", targetType: "ContractEntity", payload: {}}}
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(await entities.findById("E")).toMatchObject({title: "entity"});
+    expect(await predicates.findById("P")).toMatchObject({predicateName: "links"});
+});
+
+test("entities keep their owning package instance when another project uses the same package name", async () => {
+    const {SemanticPackage, EntityDcr, AbstractEntity} = await import("../src/index.js");
+    class IsolatedEntity extends AbstractEntity {}
+    const descriptor = new EntityDcr(IsolatedEntity, {title: {validate: value => ({value})}}, "IsolatedEntity");
+    const a = new SemanticPackage("instance-contract", {entityDcrs: [descriptor], predicateDcrs: []}, storage);
+    await a.ready();
+    const other = new SqliteStore(new Database(":memory:"));
+    try {
+        const b = new SemanticPackage("instance-contract", {entityDcrs: [descriptor], predicateDcrs: []}, other);
+        await b.ready();
+        const ca = await a.collectionForEntityType(descriptor), cb = await b.collectionForEntityType(descriptor);
+        const id = ca.createId();
+        const ra = storage.applyBatch([{collectionName: ca.name, id, expectedVersion: null, record: {title: "A"}}])[0];
+        other.applyBatch([{collectionName: cb.name, id, expectedVersion: null, record: {title: "B"}}]);
+        const entity = a.makeEntity(descriptor, id, ra);
+        expect(entity.semanticPackage).toBe(a);
+        await entity.update({title: "A changed"}, true, false);
+        expect(await ca.findById(id)).toMatchObject({title: "A changed", _version: 2});
+        expect(await cb.findById(id)).toMatchObject({title: "B", _version: 1});
+        expect(() => JSON.stringify(entity)).not.toThrow();
+    } finally { await other.close(); }
+});

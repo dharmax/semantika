@@ -1,6 +1,8 @@
 import {SemanticPackage} from "./semantic-package.js";
 import {IRawOntology} from "./raw-ontology.js";
 import {LoggedException} from "./utils/logged-exception.js";
+import type {PredicateCollection} from "./predicates-collection.js";
+import {ID_SEPARATOR} from "./utils/constants.js";
 import {EntityDcr, PredicateDcr} from "./descriptors.js";
 
 export class Ontology {
@@ -90,18 +92,17 @@ export class Ontology {
         };
     }
 
-    postProcess() {
-        Object.values(this.predicateDcrs).forEach(async dcr => {
-            if (!dcr.keys)
-                return;
-            const col = await this.semanticPackage.predicateCollection(dcr);
-            Object.values(dcr.keys).forEach(entry => {
-                const kArray: string[] = Object.values(entry);
-                kArray.forEach(k => {
-                    col.ensureIndex({sourceId: 1, [k]: 1, targetId: 1});
-                    col.ensureIndex({targetId: 1, [k]: 1, sourceId: 1});
-                });
-            });
-        });
+    /** Initialize descriptor indexes with the collection that owns their lifetime. */
+    initializePredicateIndexes(collection: PredicateCollection): void {
+        for (const dcr of Object.values(this.predicateDcrs)) {
+            const name = dcr.collectionName || this.semanticPackage.name + ID_SEPARATOR + "_Predicates";
+            if (name !== collection.name || !dcr.keys) continue;
+            for (const entry of Object.values(dcr.keys)) {
+                for (const key of Object.values(entry)) {
+                    collection.ensureIndex({sourceId: 1, [key]: 1, targetId: 1});
+                    collection.ensureIndex({targetId: 1, [key]: 1, sourceId: 1});
+                }
+            }
+        }
     }
 }

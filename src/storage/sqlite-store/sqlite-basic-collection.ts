@@ -16,7 +16,11 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
 
     private getRow(id: string): any {
         const stmt = this.db.prepare(`SELECT * FROM "${this.tableName}" WHERE _id = ?`);
-        return stmt.get ? stmt.get(id) : stmt.all(id)[0];
+        try {
+            return stmt.get ? stmt.get(id) : stmt.all(id)[0];
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async updateDocumentUnsafe(_id: string, fields: Object): Promise<boolean> {
@@ -34,8 +38,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
             SET data = ?, _lastUpdate = ?
             WHERE _id = ?
         `);
-        const res = stmt.run(JSON.stringify(mergedData), now, _id);
-        return (res.changes ?? res.rowCount ?? 1) > 0;
+        try {
+            const res = stmt.run(JSON.stringify(mergedData), now, _id);
+            return (res.changes ?? res.rowCount ?? 1) > 0;
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async updateDocument(_id: string, fields: Object, version?: number, _rawOperations: Object = {}): Promise<any> {
@@ -65,12 +73,16 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
             SET data = ?, _version = ?, _lastUpdate = ?
             WHERE _id = ? AND _version = ?
         `);
-        const res = stmt.run(JSON.stringify(mergedData), nextVersion, now, _id, existing._version);
-        if ((res.changes ?? res.rowCount ?? 0) === 0) {
-            throw new LoggedException(`Optimistic locking failed on collection ${this.name} for ${_id}`);
-        }
+        try {
+            const res = stmt.run(JSON.stringify(mergedData), nextVersion, now, _id, existing._version);
+            if ((res.changes ?? res.rowCount ?? 0) === 0) {
+                throw new LoggedException(`Optimistic locking failed on collection ${this.name} for ${_id}`);
+            }
 
-        return true;
+            return true;
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async findById<T extends Object>(_id: string, projection?: string[]): Promise<T> {
@@ -173,8 +185,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
 
         const sql = `SELECT DISTINCT ${colExpr} AS val FROM "${this.tableName}"${whereClause}`;
         const stmt = this.db.prepare(sql);
-        const rows = stmt.all ? stmt.all(...params) : stmt.all(params);
-        return rows.map((r: any) => r.val);
+        try {
+            const rows = stmt.all(...params);
+            return rows.map((r: any) => r.val);
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async findSome<T>(query: any, options: IFindOptions = {}): Promise<T[]> {
@@ -199,32 +215,36 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
         }
 
         const stmt = this.db.prepare(sql);
-        const rows = stmt.all ? stmt.all(...params) : stmt.all(params);
+        try {
+            const rows = stmt.all(...params);
 
-        let results: any[] = rows.map((r: any) => {
-            const data = JSON.parse(r.data || "{}");
-            const item = {
-                ...data,
-                _id: r._id,
-                _version: r._version,
-                _created: r._created,
-                _lastUpdate: r._lastUpdate
-            };
-            if (options.projection && options.projection.length > 0) {
-                const projected: any = { _id: item._id, _version: item._version };
-                for (const f of options.projection) {
-                    if (item[f] !== undefined) projected[f] = item[f];
+            let results: any[] = rows.map((r: any) => {
+                const data = JSON.parse(r.data || "{}");
+                const item = {
+                    ...data,
+                    _id: r._id,
+                    _version: r._version,
+                    _created: r._created,
+                    _lastUpdate: r._lastUpdate
+                };
+                if (options.projection && options.projection.length > 0) {
+                    const projected: any = { _id: item._id, _version: item._version };
+                    for (const f of options.projection) {
+                        if (item[f] !== undefined) projected[f] = item[f];
+                    }
+                    return projected;
                 }
-                return projected;
+                return item;
+            });
+
+            if (options.filterFunction) {
+                results = await options.filterFunction(results);
             }
-            return item;
-        });
 
-        if (options.filterFunction) {
-            results = await options.filterFunction(results);
+            return results as T[];
+        } finally {
+            stmt.finalize?.();
         }
-
-        return results as T[];
     }
 
     async findSomeStream<T>(query: any, options: IFindOptions, _format = StreamFormats.strings): Promise<any> {
@@ -236,8 +256,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
         const whereClause = this.buildWhereClause(query, params);
         const sql = `SELECT COUNT(*) AS count FROM "${this.tableName}"${whereClause}`;
         const stmt = this.db.prepare(sql);
-        const row = stmt.get ? stmt.get(...params) : stmt.all(...params)[0];
-        return row ? Number(row.count) : 0;
+        try {
+            const row = stmt.get ? stmt.get(...params) : stmt.all(...params)[0];
+            return row ? Number(row.count) : 0;
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async findOne<T>(query: any, projection?: string[]): Promise<T> {
@@ -278,8 +302,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
 
         try {
             const stmt = this.db.prepare(sql);
-            stmt.run(_id, _version, _created, _lastUpdate, JSON.stringify(data));
-            return _id;
+            try {
+                stmt.run(_id, _version, _created, _lastUpdate, JSON.stringify(data));
+                return _id;
+            } finally {
+                stmt.finalize?.();
+            }
         } catch (e: any) {
             if (e.message && (e.message.includes("UNIQUE constraint failed") || e.message.includes("PRIMARY KEY"))) {
                 throw new DuplicateKeyError(this.tableName);
@@ -290,8 +318,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
 
     async deleteById(_id: string): Promise<boolean> {
         const stmt = this.db.prepare(`DELETE FROM "${this.tableName}" WHERE _id = ?`);
-        const res = stmt.run(_id);
-        return (res.changes ?? res.rowCount ?? 0) > 0;
+        try {
+            const res = stmt.run(_id);
+            return (res.changes ?? res.rowCount ?? 0) > 0;
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     async deleteByQuery(query: any): Promise<number> {
@@ -299,8 +331,12 @@ export class SqliteBasicCollection implements IPhysicalCollection, ICollection {
         const whereClause = this.buildWhereClause(query, params);
         const sql = `DELETE FROM "${this.tableName}"${whereClause}`;
         const stmt = this.db.prepare(sql);
-        const res = stmt.run(...params);
-        return res.changes ?? res.rowCount ?? 0;
+        try {
+            const res = stmt.run(...params);
+            return res.changes ?? res.rowCount ?? 0;
+        } finally {
+            stmt.finalize?.();
+        }
     }
 
     ensureIndex(keys: Object, options: { unique?: boolean } = {}) {

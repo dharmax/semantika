@@ -8,7 +8,7 @@ export abstract class ArtifactCollection implements ICollection {
     protected constructor(protected physicalCollection: IPhysicalCollection) {
     }
 
-    readonly name: string;
+    get name(): string { return this.physicalCollection.name; }
 
     append(doc: Object & { _id? }) {
         doc._id = this.createId()

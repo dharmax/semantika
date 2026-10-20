@@ -89,18 +89,18 @@ export function transitionTags(taxonomy: TagTaxonomy, existing: string[], incomi
 }
 
 export abstract class SemanticArtifact {
-    private readonly _semanticPackageName: string;
+    declare private readonly owningPackage: SemanticPackage;
 
     id: string;
     _tags: string[] = [];
 
     protected constructor(sp: SemanticPackage, public _id: string) {
-        this._semanticPackageName = sp.name;
+        Object.defineProperty(this, 'owningPackage', {value: sp});
         this.id = _id;
     }
 
     get semanticPackage(): SemanticPackage {
-        return SemanticPackage.findSemanticPackage(this._semanticPackageName);
+        return this.owningPackage;
     }
 
     abstract getCollection(): Promise<ICollection>;

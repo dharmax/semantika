@@ -71,11 +71,13 @@ export class SqliteStore extends AbstractStorage {
 
     /** Atomically persist prevalidated records. Collections must already be initialized.
      * expectedVersion=null asserts absence; a positive version asserts the current record.
+     * Omitting record asserts the revision (or absence) without modifying that row.
+     * Assertions and writes share one immediate transaction, including across processes.
      * This method never awaits or changes caller-owned entities. Returned records are fresh DTOs.
      */
     applyBatch(changes: ReadonlyArray<{
         collectionName: string; id: string; expectedVersion: number | null;
-        record: Record<string, unknown> | null;
+        record?: Record<string, unknown> | null;
     }>): Array<Record<string, unknown>> {
         const activeTransaction = this.db.inTransaction ?? this.db.isTransaction;
         if (activeTransaction !== false) throw new Error("Batch requires an independent native SQLite transaction.");
@@ -95,31 +97,54 @@ export class SqliteStore extends AbstractStorage {
             return {...change, data: JSON.stringify(data)};
         });
         const result: Array<Record<string, unknown>> = [];
-        this.db.exec("SAVEPOINT semantika_batch");
+        this.db.exec("BEGIN IMMEDIATE");
         try {
             for (const change of prepared) {
                 const table = '"' + change.collectionName + '"';
-                const old = this.db.prepare(`SELECT _version, _created FROM ${table} WHERE _id = ?`).get(change.id);
+                const select = this.db.prepare(`SELECT _version, _created FROM ${table} WHERE _id = ?`);
+                let old: {_version: number; _created: string} | null | undefined;
+                try {
+                    old = select.get(change.id);
+                } finally {
+                    select.finalize?.();
+                }
                 if ((old?._version ?? null) !== change.expectedVersion)
                     throw new Error("Stale batch revision for " + change.id);
                 const now = new Date().toISOString();
+                if (change.record === undefined) continue;
                 if (change.record === null) {
-                    this.db.prepare(`DELETE FROM ${table} WHERE _id = ?`).run(change.id);
+                    const statement = this.db.prepare(`DELETE FROM ${table} WHERE _id = ?`);
+                    try {
+                        statement.run(change.id);
+                    } finally {
+                        statement.finalize?.();
+                    }
                 } else {
                     const version = (old?._version ?? 0) + 1;
                     const created = old?._created ?? now;
-                    if (old) this.db.prepare(`UPDATE ${table} SET data = ?, _version = ?, _lastUpdate = ? WHERE _id = ?`)
-                        .run(change.data, version, now, change.id);
-                    else this.db.prepare(`INSERT INTO ${table} (_id, _version, _created, _lastUpdate, data) VALUES (?, ?, ?, ?, ?)`)
-                        .run(change.id, version, created, now, change.data);
+                    const statement = old
+                        ? this.db.prepare(`UPDATE ${table} SET data = ?, _version = ?, _lastUpdate = ? WHERE _id = ?`)
+                        : this.db.prepare(`INSERT INTO ${table} (_id, _version, _created, _lastUpdate, data) VALUES (?, ?, ?, ?, ?)`);
+                    try {
+                        if (old) statement.run(change.data, version, now, change.id);
+                        else statement.run(change.id, version, created, now, change.data);
+                    } finally {
+                        statement.finalize?.();
+                    }
                     result.push({...JSON.parse(change.data), _id: change.id, _version: version, _created: created, _lastUpdate: now});
                 }
             }
-            this.db.exec("RELEASE SAVEPOINT semantika_batch");
+            this.db.exec("COMMIT");
             return result;
         } catch (error) {
-            this.db.exec("ROLLBACK TO SAVEPOINT semantika_batch");
-            this.db.exec("RELEASE SAVEPOINT semantika_batch");
+            // SQLite may already have rolled back (e.g. RAISE(ROLLBACK) or an I/O failure).
+            if (this.db.inTransaction ?? this.db.isTransaction) {
+                try {
+                    this.db.exec("ROLLBACK");
+                } catch (rollbackError) {
+                    throw new AggregateError([error, rollbackError], "SQLite batch and rollback failed.");
+                }
+            }
             throw error;
         }
     }
@@ -133,7 +158,12 @@ export class SqliteStore extends AbstractStorage {
 
     async purgeDatabase(): Promise<any> {
         const stmt = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-        const tables = stmt.all ? stmt.all() : stmt.all();
+        let tables: Array<{name: string}>;
+        try {
+            tables = stmt.all();
+        } finally {
+            stmt.finalize?.();
+        }
         for (const t of tables) {
             const tableName = t.name;
             this.db.exec(`DROP TABLE IF EXISTS "${tableName}"`);

@@ -44,7 +44,6 @@ export class SemanticPackage {
         this.tags = new TagTaxonomy(this);
         this.collectionManager = new CollectionManager(this, storage);
         SemanticPackage.semanticPackages[name] = this;
-        this.ontology.postProcess();
     }
 
     async ready(): Promise<this> {
@@ -530,19 +529,15 @@ class CollectionManager {
     }
 
     async predicateCollection(p?: Predicate | string | PredicateDcr): Promise<PredicateCollection> {
-        if (p && typeof p == "string")
-            return this.collectionForName(p, true, c => {
-                const col = this.storage.makePredicateCollection(this.semanticPackage, c);
-                predicateInitFunction(col);
-                return col;
-            });
-        // @ts-ignore
-        const pDcr: PredicateDcr = p?.constructor.name === "PredicateDcr" ? p : (p as Predicate)?.dcr;
-
-        const collectionName = pDcr?.collectionName || this.semanticPackage.name + ID_SEPARATOR + "_Predicates";
-        return this.collectionForName(collectionName, true, c =>
-            this.storage.makePredicateCollection(this.semanticPackage, c)
-        );
+        const pDcr = typeof p === "string" ? undefined : p instanceof PredicateDcr ? p : p?.dcr;
+        const collectionName = typeof p === "string" ? p
+            : pDcr?.collectionName || this.semanticPackage.name + ID_SEPARATOR + "_Predicates";
+        return this.collectionForName(collectionName, true, c => {
+            const col = this.storage.makePredicateCollection(this.semanticPackage, c);
+            if (typeof p === "string") predicateInitFunction(col);
+            this.semanticPackage.ontology.initializePredicateIndexes(col);
+            return col;
+        });
     }
 
     async collectionForName<T extends ArtifactCollection>(
